@@ -24,6 +24,10 @@ sysKernel dq 0
 sysUser dq 0
 sysPrev dq 0
 sysDelta dq 0
+sysSampleTotal dq 0
+historyObservationTick dq 0
+historyOnlyPass dd 0
+telemetryReady dd 0
 .code
 StartCollector PROC
   sub rsp,38h
@@ -55,9 +59,17 @@ StartCollector PROC
   xor r9d,r9d
   call CreateEventW
   mov refreshEvent,rax
+  cmp uiRegressionMode,0
+  jne scSkipIconWorker
+  call StartIconWorker
+scSkipIconWorker:
   xor ecx,ecx
   xor edx,edx
   lea r8,CollectorMain
+  cmp uiRegressionMode,0
+  je scProductionEntry
+  lea r8,UiRegressionCollector
+scProductionEntry:
   xor r9d,r9d
   mov qword ptr [rsp+20h],0
   mov qword ptr [rsp+28h],0
@@ -72,7 +84,11 @@ ApplySnapshot PROC
   sub rsp,28h
   mov eax,backMode
   cmp eax,desiredMode
+  jne asReject
+  mov eax,backGeneration
+  cmp eax,desiredGeneration
   je asCurrent
+asReject:
   mov snapshotPending,0
   mov rcx,ackEvent
   call SetEvent
@@ -95,11 +111,11 @@ asSameMode:
   mov snapshotPending,0
   call AddChartSample
   call BuildRowMap
+  cmp uiRegressionMode,0
+  je asNotRegression
+  inc uiRegressionAccepted
+asNotRegression:
   mov rcx,chartWnd
-  xor edx,edx
-  xor r8d,r8d
-  call InvalidateRect
-  mov rcx,gList
   xor edx,edx
   xor r8d,r8d
   call InvalidateRect
@@ -112,22 +128,56 @@ ApplySnapshot ENDP
 
 CollectorMain PROC
   sub rsp,28h
-  call InitTaskScheduler
+  ; Shell icon lookup uses COM too, but connecting to Task Scheduler is lazy.
+  xor ecx,ecx
+  xor edx,edx
+  call CoInitializeEx
+  test eax,eax
+  js cmHistoryInit
+  mov startupCom,1
+cmHistoryInit:
   call InitHistoryStore
-  call InitTelemetry
 cmLoop:
   cmp collectorStop,0
   jne cmExit
   call RunQueuedAction
+  ; Capture mode and navigation generation before any potentially expensive
+  ; enumeration. A UI switch invalidates this pass without waiting for it.
+  mov rax,qword ptr desiredMode
+  mov qword ptr collectMode,rax
+  mov eax,inspectedPid
+  mov collectInspectedPid,eax
+  mov rax,inspectedBirth
+  mov collectInspectedBirth,rax
+  mov historyOnlyPass,0
+  mov eax,collectMode
+  test eax,eax
+  je cmTelemetry
+  cmp eax,4
+  jnz cmAfterTelemetry
+cmTelemetry:
+  cmp telemetryReady,0
+  jne cmCollectTelemetry
+  call InitTelemetry
+  mov telemetryReady,1
+cmCollectTelemetry:
   call CollectTelemetry
-  call CollectRows
-  call HistoryCheckpoint
-  mov eax,desiredMode
-  mov backMode,eax
+cmAfterTelemetry:
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz cmLoop
+  mov eax,collectMode
   test eax,eax
   jnz cmThreads
+  call CollectRows
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz cmLoop
+  call GetTickCount64
+  mov historyObservationTick,rax
   jmp cmPublish
 cmThreads:
+  mov eax,collectMode
   cmp eax,1
   jne cmOther
   call CollectThreads
@@ -145,6 +195,7 @@ cmNotServices:
 cmNotUsers:
   cmp eax,5
   jne cmNotStartup
+  call InitTaskScheduler
   call CollectStartupV2
   jmp cmPublish
 cmNotStartup:
@@ -155,6 +206,11 @@ cmNotStartup:
 cmPerformance:
   call CollectPerformance
 cmPublish:
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz cmLoop
+  mov rax,qword ptr collectMode
+  mov qword ptr backMode,rax
   mov rcx,gMain
   mov edx,8001h
   xor r8d,r8d
@@ -170,6 +226,29 @@ cmAck:
   jne cmExit
   test eax,eax
   jne cmAck
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz cmLoop
+  ; The requested panel is already visible before maintenance work begins.
+  ; Outside Processes, take interruptible history observations at most once
+  ; per five seconds, without window-root or shell-icon discovery.
+  call HistoryCheckpoint
+  cmp collectMode,0
+  je cmPrepareInterval
+  call GetTickCount64
+  sub rax,historyObservationTick
+  cmp rax,5000
+  jb cmPrepareInterval
+  mov historyOnlyPass,1
+  call CollectRows
+  mov historyOnlyPass,0
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz cmLoop
+  call GetTickCount64
+  mov historyObservationTick,rax
+  call HistoryCheckpoint
+cmPrepareInterval:
   mov rcx,gMain
   call IsIconic
   mov edx,refreshInterval
@@ -196,6 +275,26 @@ cmNoCom:
   ret
 CollectorMain ENDP
 
+; Shared cancellation point for collector enumerations. Isolated model tests
+; do not have a collector handle and are not driven by navigation requests.
+CollectorSnapshotCurrent PROC
+  cmp collectorStop,0
+  jne cscCancelled
+  cmp collectorHandle,0
+  je cscCurrent
+  mov rax,qword ptr desiredMode
+  cmp rax,qword ptr collectMode
+  jne cscCancelled
+  cmp actionPending,0
+  jne cscCancelled
+cscCurrent:
+  mov eax,1
+  ret
+cscCancelled:
+  xor eax,eax
+  ret
+CollectorSnapshotCurrent ENDP
+
 ; RCX integer, RDX destination. DecimalBuffer belongs solely to worker now.
 StoreDecimal PROC
   push rbx
@@ -210,6 +309,35 @@ StoreDecimal PROC
   ret
 StoreDecimal ENDP
 
+; RCX process row. RecordHistory supplies CPU and system deltas for the same
+; PID+birth interval. Invalid/overflowed/impossible samples remain unavailable.
+CalculateProcessCpu PROC
+  mov r10,rcx
+  cmp dword ptr [r10+3672],0
+  je cpcDone
+  mov r11,[r10+4000]
+  test r11,r11
+  jz cpcInvalid
+  mov rax,[r10+3664]
+  cmp rax,r11
+  ja cpcInvalid
+  mov ecx,1000
+  mul rcx
+  cmp rdx,r11
+  jae cpcInvalid
+  div r11
+  cmp rax,1000
+  ja cpcInvalid
+  mov edx,eax
+  mov rcx,r10
+  jmp FormatProcessCpu
+cpcInvalid:
+  mov dword ptr [r10+3672],0
+  mov dword ptr [r10+3900],0
+cpcDone:
+  ret
+CalculateProcessCpu ENDP
+
 CollectRows PROC
   push rbx
   push rsi
@@ -217,19 +345,30 @@ CollectRows PROC
   push r12
   push r13
   sub rsp,30h
+  cmp historyOnlyPass,0
+  jne crTimesStart
   call CollectApplicationRoots
+  call BuildProcessPauseMap
+crTimesStart:
   lea rcx,historyNow
   call GetSystemTimeAsFileTime
   lea rcx,sysIdle
   lea rdx,sysKernel
   lea r8,sysUser
   call GetSystemTimes
+  mov sysSampleTotal,0
+  mov sysDelta,0
+  test eax,eax
+  jz crSystemTimesReady
   mov rax,sysKernel
   add rax,sysUser
+  jc crSystemTimesReady
+  mov sysSampleTotal,rax
   mov rcx,rax
   sub rax,sysPrev
   mov sysPrev,rcx
   mov sysDelta,rax
+crSystemTimesReady:
   mov backCount,0
   mov ecx,2
   xor edx,edx
@@ -244,6 +383,9 @@ CollectRows PROC
 crNext:
   test eax,eax
   jz crClose
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz crClose
   cmp backCount,8192
   jae crClose
   mov edi,backCount
@@ -251,6 +393,9 @@ crNext:
   add rdi,backBuffer
   mov rcx,rdi
   call ClearRow
+  mov eax,processDefaultIcon
+  mov [rdi+3880],eax
+  mov dword ptr [rdi+3884],2
   mov rcx,rdi
   lea rdx,processBuffer+44
   mov r8d,256
@@ -301,9 +446,9 @@ crNext:
   call StoreDecimal
   mov rcx,qword ptr [memoryBuffer+16]
   mov [rdi+3632],rcx
-  shr rcx,20
   lea rdx,[rdi+2560]
-  call StoreDecimal
+  mov r8d,1048576
+  call StoreScaledMetric
 crTimes:
   mov rcx,rsi
   lea rdx,processIo
@@ -332,18 +477,18 @@ crGetTimes:
   mov [rdi+3608],rax
   mov rcx,rdi
   call RecordHistory
-  cmp dword ptr [rdi+3672],0
-  je crHandleClose
-  mov rax,[rdi+3664]
-  mov ecx,100
-  mul rcx
-  cmp sysDelta,0
-  je crHandleClose
-  div sysDelta
-  mov rcx,rax
-  lea rdx,[rdi+3072]
-  call StoreDecimal
+  mov rcx,rdi
+  call CalculateProcessCpu
 crHandleClose:
+  cmp historyOnlyPass,0
+  jne crProcessClose
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz crProcessClose
+  mov rcx,rdi
+  mov rdx,rsi
+  call CollectProcessPresentation
+crProcessClose:
   mov rcx,rsi
   call CloseHandle
 crRowDone:

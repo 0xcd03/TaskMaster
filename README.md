@@ -1,4 +1,4 @@
-﻿# TaskManagerX64
+# TaskManagerX64
 
 Native Win32 process manager written in MASM x64. It uses Visual Studio Build Tools (`ml64.exe`, `link.exe`, `rc.exe`) and the Windows SDK; no IDE or external runtime is required.
 
@@ -17,6 +17,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build-taskmanager.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\build-taskmanager.ps1 -Preview -OutputPath .\outputs\TaskManagerX64-standard.exe
 powershell -NoProfile -ExecutionPolicy Bypass -File .\verify-build.ps1 -Path .\outputs\TaskManagerX64.exe
 powershell -NoProfile -ExecutionPolicy Bypass -File .\build-tests.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\test-ui-regression.ps1
 ```
 
 `build-resources.ps1` generates UTF-16 Windows resources and the MASM string buffers from `res/ui-strings.json`. The generator checks RU/EN format arguments and length limits. English and Russian menus, process/thread/service/user/performance/startup/history labels, warning text and error text are covered.
@@ -31,14 +32,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build-tests.ps1
 
 ## Validation
 
-The model test suite passed: stale PID identity; pause/resume/trim/priority/terminate on disposable target processes; RU/EN resource loading; 5000-row topology; collapse and ancestor search; PID reuse; persistent history; checksum corruption; registry and Startup-folder round trips; chart ring buffer; high-DPI scale calculation; Task Scheduler enumeration; and an independent COM-verified Task Scheduler disable/enable round trip. The final PE verifier passed for both binaries: AMD64, PE32+ GUI, `SimpleEntry` RVA `0x131B`, ASLR/NX flags, and 77,312-byte files.
+The model test suite passed: stale PID identity; pause/resume/trim/priority/terminate on disposable target processes; RU/EN resource loading; 5000-row topology; collapse and ancestor search; PID reuse; persistent history; checksum corruption; registry and Startup-folder round trips; chart ring buffer; high-DPI scale calculation; Task Scheduler enumeration; and an independent COM-verified Task Scheduler disable/enable round trip. The final PE verifier passed for both binaries: AMD64, PE32+ GUI, the linker-map-confirmed `SimpleEntry`, ASLR/NX flags, and a size limit of 256 KiB (see the current verification report for exact size).
 
 Computer-use verification observed the final localized process screen, Direct2D performance screen, startup sources (Run/RunOnce/folder/task entries), and persistent history screen. A final relaunch after the last non-visual hardening changes was stopped by the physical Escape key, so that exact post-hardening relaunch is not claimed as visually verified. Windows 11 build 22631 was used for the observed run; Windows 10 remains to be tested separately.
 
 Memory trim reduces resident working set; it does not reduce private commit and can cause later page faults. Per-process network attribution is intentionally not claimed: the performance panel reports interface totals. GPU and PDH values may be unavailable on a specific machine and are shown as `N/A`/`нет данных`.
+
+The collector prioritizes the requested panel and cancels obsolete navigation generations. Process history follows the refresh interval on Processes; on other panels, it takes a background observation at most once every five seconds after publishing the visible panel. Navigation can cancel that observation, so recorded history can contain gaps and is not a continuous trace. Task Scheduler and shell icon discovery are not prerequisites for service, user, performance, or thread snapshots.
+
+Process icons load on one separate worker through a 32-request queue and a bounded PID-plus-creation-time cache. Rows use the generic EXE icon until a result is ready; queue overflow is retried later, and executable paths over 1023 characters keep the generic icon. A slow shell icon handler cannot hold the collector or the UI, and application exit never waits for that handler.
 ## Application icon and signing
 
-`make-icon.ps1` draws the TaskMaster icon and writes a native ICO container with 16, 20, 24, 32, 40, 48, 64, 128 and 256 px PNG frames. Resource 103 embeds it in the executable; the window class loads the same resource for its large/small icons. Current binaries are 109,568 bytes after adding the icon.
+`make-icon.ps1` draws the TaskMaster icon and writes a native ICO container with 16, 20, 24, 32, 40, 48, 64, 128 and 256 px PNG frames. Resource 103 embeds it in the executable; the window class loads the same resource for its large/small icons. The new icon is a stylized circular shield with a light rim, graphite interior and orange T crest, rendered from code at all supported sizes.
 
 The application is currently UNSIGNED: no publisher Code Signing certificate is available. A self-signed certificate is not a trusted publisher signature and would not establish antivirus reputation. Even a trusted signature cannot guarantee that antivirus software will never flag process/thread control operations.
 
@@ -49,3 +54,15 @@ To sign after obtaining a Code Signing certificate with an accessible private ke
 ```
 
 Use `-LocalMachine` for the machine certificate store. The script uses Windows SDK SignTool, SHA-256 and an RFC 3161 timestamp, then verifies with Authenticode policy. It does not export private keys or change Windows trust settings. Repackage release ZIP files after signing. Token/cloud certificates may require provider-specific setup.
+
+## Interface and responsiveness update
+
+- A DPI-scaled icon sidebar highlights the selected section immediately. Switching is independent of the data collector and remains available while actions run. Mode plus generation identifiers reject stale snapshots. `WM_GETMINMAXINFO` now writes the minimum tracking size at the correct offsets, leaving maximize tracking unrestricted.
+- Process columns are Name, Status, CPU, resident Working Set in MiB, read+write I/O in KiB/s, Network and PID. Values have numeric sorting, executable icons and resource heat coloring. I/O includes process file/device operations and is not a physical-disk measurement. Network is explicitly unavailable until a supported per-process attribution collector exists. Working-set sums count shared pages again.
+- Menu bar and popups, search edit, list header, sidebar, list cells and the list's native scrollbars follow light/dark colors. The scrollbar track, thumb, arrows and corner are repainted through documented Win32 scrollbar geometry after native processing; hit testing, dragging, keyboard input and accessibility remain native.
+- The PC boost card measures total physical RAM use and the latest before/after percentage. Its button runs guarded `EmptyWorkingSet` operations on a worker and reports successes, failures, skips, measured working sets and private commit. It is a working-set trim, not forced Windows memory compression.
+- Full-list selection resets and duplicate invalidations on every snapshot were removed. Shell icon extraction runs on a separate bounded worker. Requested tabs are collected first; stale enumerations cancel at entry boundaries.
+
+`test-ui-regression.ps1` builds and runs a hidden test window using the actual controls. It covers immediate navigation while busy, delayed stale snapshots, 5000 displayed fixture rows across multiple accepted updates, message-response latency and light/dark color paths. It never modifies user settings or trims user processes. The final interactive visual pass was stopped with Escape; the latest complete build is verified by automated tests rather than claimed as visually inspected.
+
+After building and validating both configurations, `package-release.ps1` creates release and source ZIPs from an explicit source set. It includes the current `outputs/verification.txt`, icon and SHA-256 checksums in the release, and excludes local history, settings, Git internals and scratch files.

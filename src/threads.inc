@@ -1,10 +1,21 @@
 extern GetThreadPriority:proc, GetThreadDescription:proc, LocalFree:proc
 .data
 align 8
+; Each mode/generation pair is one aligned, atomically published qword.
 desiredMode dd 0
+desiredGeneration dd 0
 frontMode dd 0
+align 8
 backMode dd 0
+backGeneration dd 0
+align 8
+collectMode dd 0
+collectGeneration dd 0
+collectInspectedPid dd 0
+align 8
+collectInspectedBirth dq 0
 inspectedPid dd 0
+align 8
 inspectedBirth dq 0
 threadName dq 0
 .code
@@ -26,37 +37,33 @@ smcDelete:
   jne smcThread
   xor ecx,ecx
   lea rdx,szProcess
-  mov r8d,340
+  mov r8d,240
   call GuiColumn
   mov ecx,1
-  lea rdx,szPid
-  mov r8d,90
+  lea rdx,processStatusCaption
+  mov r8d,130
   call GuiColumn
   mov ecx,2
-  lea rdx,szParent
-  mov r8d,90
+  lea rdx,cpuCaption
+  mov r8d,76
   call GuiColumn
   mov ecx,3
-  lea rdx,szThreads
-  mov r8d,90
+  lea rdx,processMemoryCaption
+  mov r8d,120
   call GuiColumn
   mov ecx,4
-  lea rdx,privateCommitCol
-  cmp treeEnabled,0
-  je smcCommit
-  lea rdx,treeCommitCaption
-smcCommit:
-  mov r8d,220
+  lea rdx,processDiskCaption
+  mov r8d,125
   call GuiColumn
   mov ecx,5
-  lea rdx,wsCaption
-  cmp treeEnabled,0
-  je smcWorkingSet
-  lea rdx,treeWsCaption
-smcWorkingSet:
-  mov r8d,150
+  lea rdx,processNetworkCaption
+  mov r8d,90
   call GuiColumn
-  jmp smcCPU
+  mov ecx,6
+  lea rdx,szPid
+  mov r8d,68
+  call GuiColumn
+  jmp smcDone
 smcThread:
   xor ecx,ecx
   lea rdx,threadCaption
@@ -104,7 +111,7 @@ CollectThreads PROC
   mov backCount,0
   mov ecx,1000h
   xor edx,edx
-  mov r8d,inspectedPid
+  mov r8d,collectInspectedPid
   call OpenProcess
   mov rsi,rax
   test rax,rax
@@ -122,7 +129,7 @@ CollectThreads PROC
   test ebx,ebx
   jz ctDone
   mov rax,timeCreate
-  cmp rax,inspectedBirth
+  cmp rax,collectInspectedBirth
   jne ctDone
   mov ecx,4
   xor edx,edx
@@ -137,8 +144,11 @@ CollectThreads PROC
 ctNext:
   test eax,eax
   jz ctClose
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz ctClose
   mov eax,dword ptr [threadEntry+12]
-  cmp eax,inspectedPid
+  cmp eax,collectInspectedPid
   jne ctAdvance
   cmp backCount,4096
   jae ctClose
@@ -154,7 +164,7 @@ ctNext:
   mov [rdi+3584],ecx
   lea rdx,[rdi+512]
   call StoreDecimal
-  mov ecx,inspectedPid
+  mov ecx,collectInspectedPid
   mov [rdi+3588],ecx
   lea rdx,[rdi+1024]
   call StoreDecimal
@@ -162,7 +172,7 @@ ctNext:
   lea rdx,[rdi+1536]
   call StoreDecimal
   mov qword ptr [rdi+3600],0
-  mov rax,inspectedBirth
+  mov rax,collectInspectedBirth
   mov [rdi+3616],rax
   lea rcx,[rdi+2048]
   lea rdx,unavailable

@@ -10,6 +10,7 @@ includelib comctl32.lib
 includelib psapi.lib
 includelib advapi32.lib
 includelib shell32.lib
+includelib uxtheme.lib
 
 extern GetModuleHandleW:proc
 extern ExitProcess:proc
@@ -49,6 +50,7 @@ extern GetStockObject:proc
 extern SetWindowTextW:proc
 extern GetDlgCtrlID:proc
 extern GetWindowTextW:proc
+extern SetTextColor:proc, SetBkColor:proc
 
 
 ; constants
@@ -226,6 +228,10 @@ gClass WNDCLASSEXW <>
 .code
 SimpleWndProc PROC
   sub rsp,68h
+  cmp edx,2Ch
+  je measureMenuItem
+  cmp edx,2Bh
+  je drawMenuItem
   cmp edx,2E0h
   je dpiChanged
   cmp edx,24h
@@ -234,6 +240,8 @@ SimpleWndProc PROC
   je snapshotReady
   cmp edx,WM_NOTIFY
   je displayNotify
+  cmp edx,133h ; WM_CTLCOLOREDIT: native search follows the application theme
+  je colorSearch
   cmp edx,WM_COMMAND
   je menuCommand
   cmp edx,8002h
@@ -264,11 +272,44 @@ swp_def:
   call DefWindowProcW
   add rsp,68h
   ret
+measureMenuItem:
+  test r9,r9
+  jz swp_def
+  cmp dword ptr [r9],1 ; ODT_MENU, controls retain their own handlers
+  jne swp_def
+  call MenuMeasure
+  add rsp,68h
+  ret
+drawMenuItem:
+  test r9,r9
+  jz swp_def
+  cmp dword ptr [r9],1
+  jne swp_def
+  call MenuDraw
+  add rsp,68h
+  ret
+colorSearch:
+  cmp r9,searchWnd
+  jne swp_def
+  mov [rsp+40h],r8
+  mov rcx,r8
+  mov edx,shellTextColor
+  call SetTextColor
+  mov rcx,[rsp+40h]
+  mov edx,0FFFFFFh
+  cmp themeOption,0
+  je csBackground
+  mov edx,2E2E2Eh
+csBackground:
+  call SetBkColor
+  mov rax,shellCardBrush
+  add rsp,68h
+  ret
 minimumSize:
   mov eax,uiMinWidth
-  mov [r9+32],eax
+  mov [r9+24],eax ; MINMAXINFO.ptMinTrackSize.x (ptMaxTrackSize is +32)
   mov eax,uiMinHeight
-  mov [r9+36],eax
+  mov [r9+28],eax
   jmp moveDone
 dpiChanged:
   mov eax,r8d
@@ -336,6 +377,11 @@ snapshotReady:
   call ApplySnapshot
   jmp moveDone
 displayNotify:
+  mov rax,gList
+  cmp qword ptr [r9],rax
+  jne moveDone
+  cmp dword ptr [r9+16],-12
+  je listCustomDraw
   cmp dword ptr [r9+16],-3
   jne notTreeDouble
   call ToggleTreeNode
@@ -352,26 +398,21 @@ notTreeDouble:
   mov rax,[rdx+rax*8]
   cmp frontMode,0
   jne displayNormal
-  cmp treeEnabled,0
-  je displayNormal
-  cmp dword ptr [r9+32],4
-  je displayTreeCommit
-  cmp dword ptr [r9+32],5
-  je displayTreeWS
-  cmp dword ptr [r9+32],0
-  jne displayNormal
-  mov rax,[rax+3744]
+  mov edx,[rax+3880]
+  mov [r9+60],edx
+  mov [rsp+40h],r9
+  mov edx,dword ptr [r9+32]
+  mov rcx,rax
+  call ProcessDisplayText
+  mov r9,[rsp+40h]
   mov qword ptr [r9+48],rax
   jmp moveDone
-displayTreeCommit:
-  lea rax,[rax+3752]
-  mov qword ptr [r9+48],rax
-  jmp moveDone
-displayTreeWS:
-  lea rax,[rax+3816]
-  mov qword ptr [r9+48],rax
-  jmp moveDone
+listCustomDraw:
+  call ProcessListCustomDraw
+  add rsp,68h
+  ret
 displayNormal:
+  mov dword ptr [r9+60],-2 ; I_IMAGENONE for non-process panel rows
   mov edx,dword ptr [r9+32]
   cmp edx,7
   jae moveDone
@@ -456,7 +497,7 @@ SimpleEntry PROC
   mov r9d,WS_OVERLAPPEDWINDOW or WS_VISIBLE
   mov dword ptr [rsp+20h],100
   mov dword ptr [rsp+28h],100
-  mov eax,1100
+  mov eax,1320
   imul eax,uiDpi
   xor edx,edx
   mov r10d,96
@@ -569,6 +610,14 @@ GuiColumn PROC
   mov r8d,eax
   mov rdx,r11
   mov dword ptr [columnBuffer],7
+  xor eax,eax
+  cmp frontMode,0
+  jne gcFormat
+  cmp ecx,2
+  jb gcFormat
+  mov eax,1 ; resource figures align on the right, like Task Manager
+gcFormat:
+  mov dword ptr [columnBuffer+4],eax
   mov dword ptr [columnBuffer+8],r8d
   mov qword ptr [columnBuffer+16],rdx
   mov r8,rcx
@@ -585,7 +634,7 @@ InitGui PROC
   xor ecx,ecx
   lea rdx,szList
   xor r8d,r8d
-  mov r9d,5001100Dh
+  mov r9d,5001104Dh ; LVS_SHAREIMAGELISTS: shell owns the system image list
   mov qword ptr [rsp+20h],16
   mov qword ptr [rsp+28h],16
   mov qword ptr [rsp+30h],1000
@@ -603,6 +652,8 @@ InitGui PROC
   mov r8d,10020h
   mov r9d,10020h
   call SendMessageW
+  call InitProcessImages
+  call InitProcessListStyle
   xor ecx,ecx
   lea rdx,szProcess
   mov r8d,340
@@ -772,6 +823,11 @@ include application_roots.inc
 include dpi.inc
 include task_test.inc
 include action_errors.inc
+include process_ui.inc
+include process_ui_tests.inc
+include menu_theme.inc
+include menu_theme_tests.inc
+include ui_regression.inc
 END
 
 

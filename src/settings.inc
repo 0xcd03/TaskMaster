@@ -3,6 +3,7 @@ extern GetPrivateProfileIntW:proc, WritePrivateProfileStringW:proc
 extern LoadMenuW:proc, LoadStringW:proc, CreateFontW:proc
 extern DwmSetWindowAttribute:proc, CreateSolidBrush:proc, SetClassLongPtrW:proc
 extern RedrawWindow:proc
+extern SetWindowTheme:proc, SetBkColor:proc
 .data
 align 8
 appLanguage dd 1
@@ -38,6 +39,8 @@ zeroText dw '0',0
 oneText dw '1',0
 oneSecondText dw '1','0','0','0',0
 threeSecondText dw '3','0','0','0',0
+explorerThemeName dw 'E','x','p','l','o','r','e','r',0
+darkExplorerThemeName dw 'D','a','r','k','M','o','d','e','_','E','x','p','l','o','r','e','r',0
 .code
 LoadSettings PROC
   sub rsp,98h
@@ -137,6 +140,7 @@ BuildSidebar PROC
   push rsi
   push rdi
   sub rsp,60h
+  call CreateShellSidebar
   xor esi,esi
   lea rdi,navButtons
 bsNext:
@@ -150,7 +154,7 @@ bsString:
   mov r8,rax
   xor ecx,ecx
   lea rdx,szButton
-  mov r9d,50010000h
+  mov r9d,5001000Bh
   mov qword ptr [rsp+20h],12
   mov eax,esi
   imul eax,48
@@ -158,7 +162,7 @@ bsString:
   mov [rsp+28h],rax
   mov qword ptr [rsp+30h],172
   mov qword ptr [rsp+38h],40
-  mov rax,gMain
+  mov rax,shellWnd
   mov [rsp+40h],rax
   xor eax,eax
   test esi,esi
@@ -180,6 +184,7 @@ bsId:
   inc esi
   cmp esi,6
   jb bsNext
+  call CreateMemoryButton
   mov rcx,gList
   mov edx,30h
   mov r8,appFont
@@ -221,6 +226,26 @@ LayoutSearch ENDP
 
 ApplyTheme PROC
   sub rsp,28h
+  call UpdateShellTheme
+  call ApplyMenuTheme
+  ; Ask the native control theme to paint its nonclient scrollbars and border.
+  ; Manual drawing/colors continue to work if a theme part is unavailable.
+  mov rcx,gList
+  lea rdx,explorerThemeName
+  cmp themeOption,0
+  je atListTheme
+  lea rdx,darkExplorerThemeName
+atListTheme:
+  xor r8d,r8d
+  call SetWindowTheme
+  mov rcx,searchWnd
+  lea rdx,explorerThemeName
+  cmp themeOption,0
+  je atSearchTheme
+  lea rdx,darkExplorerThemeName
+atSearchTheme:
+  xor r8d,r8d
+  call SetWindowTheme
   mov rcx,gMain
   mov edx,20
   lea r8,themeOption
@@ -253,6 +278,14 @@ atText:
   mov edx,1024h
   xor r8d,r8d
   call SendMessageW
+  mov rcx,searchWnd
+  xor edx,edx
+  mov r8d,1
+  call InvalidateRect
+  mov rcx,processHeader
+  xor edx,edx
+  mov r8d,1
+  call InvalidateRect
   mov rcx,gList
   xor edx,edx
   mov r8d,1
@@ -343,4 +376,5 @@ scDone:
   add rsp,28h
   ret
 SettingsCommand ENDP
+include shell_ui.inc
 

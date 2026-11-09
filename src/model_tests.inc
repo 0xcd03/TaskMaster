@@ -368,22 +368,32 @@ mtChart:
   mov modelStage,13
   mov uiDpi,96
   call RecalcUiScale
-  cmp uiContentLeft,200
+  cmp uiContentLeft,224
   jne mtFail
   mov uiDpi,120
   call RecalcUiScale
-  cmp uiContentLeft,250
+  cmp uiContentLeft,280
   jne mtFail
   mov uiDpi,144
   call RecalcUiScale
-  cmp uiContentLeft,300
+  cmp uiContentLeft,336
   jne mtFail
   mov uiDpi,192
   call RecalcUiScale
-  cmp uiContentLeft,400
+  cmp uiContentLeft,448
   jne mtFail
   mov uiDpi,96
   call RecalcUiScale
+  call ProcessPresentationTests
+  test eax,eax
+  jnz mtFail
+  mov modelStage,20
+  call IconQueueTests
+  test eax,eax
+  jnz mtFail
+  call MenuThemeTests
+  test eax,eax
+  jnz mtFail
   mov modelStage,12
   call InitTaskScheduler
   cmp taskFolder,0

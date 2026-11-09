@@ -5,20 +5,40 @@ New-Item -ItemType Directory -Force -Path $res | Out-Null
 $bmp=New-Object Drawing.Bitmap 256,256,([Drawing.Imaging.PixelFormat]::Format32bppArgb)
 $g=[Drawing.Graphics]::FromImage($bmp)
 $g.SmoothingMode=[Drawing.Drawing2D.SmoothingMode]::AntiAlias
-$g.Clear([Drawing.Color]::FromArgb(14,24,42))
-$bg=[Drawing.Drawing2D.LinearGradientBrush]::new(([Drawing.Rectangle]::new(0,0,256,256)),[Drawing.Color]::FromArgb(24,82,156),[Drawing.Color]::FromArgb(15,181,170),45)
-$g.FillRectangle($bg,0,0,256,256)
-$bg.Dispose()
-$white=[Drawing.SolidBrush]::new([Drawing.Color]::FromArgb(245,250,255))
-$cyan=[Drawing.SolidBrush]::new([Drawing.Color]::FromArgb(111,232,220))
-$blue=[Drawing.SolidBrush]::new([Drawing.Color]::FromArgb(73,156,255))
-$pen=[Drawing.Pen]::new([Drawing.Color]::FromArgb(205,235,255),9)
-$pen.StartCap=[Drawing.Drawing2D.LineCap]::Round;$pen.EndCap=[Drawing.Drawing2D.LineCap]::Round
-$g.DrawArc($pen,37,32,182,182,215,110)
-$g.FillRectangle($white,55,158,25,38);$g.FillRectangle($cyan,92,128,25,68);$g.FillRectangle($blue,129,94,25,102);$g.FillRectangle($white,166,62,25,134)
-$g.DrawLine($pen,128,128,176,88)
-$g.FillEllipse($cyan,115,115,26,26)
-$pen.Dispose();$white.Dispose();$cyan.Dispose();$blue.Dispose();$g.Dispose()
+$g.Clear([Drawing.Color]::Transparent)
+# Original TaskMaster-inspired shield mark: a blue/graphite round shield with
+# an orange angular T. It is a new app emblem, not a copied character asset.
+$outer=[Drawing.SolidBrush]::new([Drawing.Color]::FromArgb(232,236,242))
+$g.FillEllipse($outer,8,8,240,240)
+$outer.Dispose()
+$ring=[Drawing.SolidBrush]::new([Drawing.Color]::FromArgb(31,42,62))
+$g.FillEllipse($ring,20,20,216,216)
+$ring.Dispose()
+$inner=[Drawing.Drawing2D.LinearGradientBrush]::new(([Drawing.Rectangle]::new(28,28,200,200)),[Drawing.Color]::FromArgb(78,97,122),[Drawing.Color]::FromArgb(22,28,43),45)
+$g.FillEllipse($inner,28,28,200,200)
+$inner.Dispose()
+$edge=[Drawing.Pen]::new([Drawing.Color]::FromArgb(203,211,224),3)
+$g.DrawEllipse($edge,28,28,200,200)
+$edge.Dispose()
+# The orange crest uses a shield-like chevron and central stem, legible at 16px.
+$orange=[Drawing.SolidBrush]::new([Drawing.Color]::FromArgb(238,108,24))
+$crest=[Drawing.Drawing2D.GraphicsPath]::new()
+$crest.AddPolygon([Drawing.Point[]]@(
+  [Drawing.Point]::new(42,76), [Drawing.Point]::new(82,88),
+  [Drawing.Point]::new(128,72), [Drawing.Point]::new(174,88),
+  [Drawing.Point]::new(214,76), [Drawing.Point]::new(202,122),
+  [Drawing.Point]::new(166,108), [Drawing.Point]::new(151,124),
+  [Drawing.Point]::new(151,184), [Drawing.Point]::new(128,204),
+  [Drawing.Point]::new(105,184), [Drawing.Point]::new(105,124),
+  [Drawing.Point]::new(90,108), [Drawing.Point]::new(54,122)
+))
+$g.FillPath($orange,$crest)
+$crest.Dispose();$orange.Dispose()
+$highlight=[Drawing.Pen]::new([Drawing.Color]::FromArgb(255,211,130),2)
+$highlight.StartCap=[Drawing.Drawing2D.LineCap]::Round;$highlight.EndCap=[Drawing.Drawing2D.LineCap]::Round
+$g.DrawArc($highlight,53,44,150,150,205,130)
+$highlight.Dispose()
+$g.Dispose()
 $ico=Join-Path $res 'taskmanager.ico'
 $bmp.Save((Join-Path $res 'taskmanager.png'),[Drawing.Imaging.ImageFormat]::Png)
 $sizes=@(16,20,24,32,40,48,64,128,256)

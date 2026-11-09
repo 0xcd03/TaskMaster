@@ -8,12 +8,17 @@ historyCount dd 0
 .code
 ; Worker-owned history, bounded to 8192 identities. PID + birth is the identity.
 ; 3656=observed CPU, 3680/3688=observed I/O; do not count gaps across restarts.
+; History+3736 stores the system CPU total at this identity's own sample.
+; Process+4000 is the matching interval, independent of skipped snapshots.
 RecordHistory PROC
   push rbx
   push rsi
   push rdi
   sub rsp,20h
   mov rbx,rcx
+  mov qword ptr [rbx+3664],0
+  mov dword ptr [rbx+3672],0
+  mov qword ptr [rbx+4000],0
   cmp qword ptr [rbx+3600],0
   je rhDone
   mov historyDirty,1
@@ -61,15 +66,58 @@ rhCreate:
   mov qword ptr [rsi+3680],0
   mov qword ptr [rsi+3688],0
   mov qword ptr [rsi+3712],0
+  mov qword ptr [rsi+3736],0
 rhUpdate:
+  ; Current bytes/sec from the same process identity and a real sample interval.
+  ; These are process I/O counters, not a claim of physical disk attribution.
+  cmp dword ptr [rbx+3660],0
+  je rhCpuUpdate
+  cmp dword ptr [rsi+3716],0
+  je rhCpuUpdate
+  cmp dword ptr [rsi+3712],0
+  je rhCpuUpdate
+  mov rax,historyNow
+  sub rax,[rsi+3672]
+  jbe rhCpuUpdate
+  cmp rax,300000000
+  ja rhCpuUpdate
+  mov r10,rax
+  mov rax,[rbx+3640]
+  sub rax,[rsi+3696]
+  jc rhCpuUpdate
+  mov r11,[rbx+3648]
+  sub r11,[rsi+3704]
+  jc rhCpuUpdate
+  add rax,r11
+  jc rhCpuUpdate
+  mov ecx,10000000
+  mul rcx
+  cmp rdx,r10
+  jae rhCpuUpdate
+  div r10
+  mov [rbx+3888],rax
+  mov dword ptr [rbx+3896],1
+rhCpuUpdate:
   cmp dword ptr [rsi+3712],0
   je rhFirstSample
   mov rax,[rbx+3608]
   sub rax,[rsi+3608]
   jc rhFirstSample
   mov [rbx+3664],rax
-  mov dword ptr [rbx+3672],1
   add [rsi+3656],rax
+  ; A process skipped by cancelled or infrequent passes must use the system
+  ; delta from its own previous observation, never the most recent global pass.
+  mov rax,sysSampleTotal
+  test rax,rax
+  jz rhObservedTime
+  mov rdx,[rsi+3736]
+  test rdx,rdx
+  jz rhObservedTime
+  sub rax,rdx
+  jbe rhObservedTime
+  mov [rbx+4000],rax
+  mov dword ptr [rbx+3672],1
+rhObservedTime:
   mov rax,historyNow
   sub rax,[rsi+3672]
   jc rhFirstSample
@@ -112,6 +160,8 @@ rhCommit:
 rhCpu:
   mov rax,[rbx+3608]
   mov [rsi+3608],rax
+  mov rax,sysSampleTotal
+  mov [rsi+3736],rax
   inc qword ptr [rsi+3648]
   mov rax,historyNow
   mov [rsi+3672],rax
@@ -132,6 +182,9 @@ CollectHistory PROC
   lea rsi,historyRows
   mov ebx,historyCount
 chNext:
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz chDone
   test ebx,ebx
   jz chDone
   mov edi,backCount

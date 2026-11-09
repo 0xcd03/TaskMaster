@@ -201,6 +201,35 @@ SelfTest PROC
   call RunQueuedAction
   cmp actionSucceeded,1
   jne stTrimFail
+  ; Real measurements must bracket the actual trim of this disposable target.
+  cmp memoryTrimActive,1
+  jne stTrimFail
+  cmp memoryTrimBeforeValid,0
+  je stTrimFail
+  cmp memoryTrimAfterValid,0
+  je stTrimFail
+  cmp memoryTrimMeasured,1
+  jne stTrimFail
+  mov rax,memoryTrimWsBefore
+  cmp rax,67108864
+  jb stTrimFail
+  cmp rax,memoryTrimWsAfter
+  jbe stTrimFail
+  ; Trimming must not be reported as releasing the target's allocation/commit.
+  cmp memoryTrimCommitBefore,67108864
+  jb stTrimFail
+  cmp memoryTrimCommitAfter,67108864
+  jb stTrimFail
+  ; Invalid handle must preserve Win32 failure and leave successful totals intact.
+  xor ecx,ecx
+  call TrimProcessMemory
+  test eax,eax
+  jnz stTrimFailurePathFail
+  call GetLastError
+  cmp eax,6 ; ERROR_INVALID_HANDLE
+  jne stTrimFailurePathFail
+  cmp memoryTrimMeasured,1
+  jne stTrimFailurePathFail
   mov actionCode,2007
   mov actionPending,1
   call RunQueuedAction
@@ -237,6 +266,9 @@ stResumeFail:
   jmp stFinish
 stTrimFail:
   mov eax,15
+  jmp stFinish
+stTrimFailurePathFail:
+  mov eax,19
   jmp stFinish
 stPriorityFail:
   mov eax,16

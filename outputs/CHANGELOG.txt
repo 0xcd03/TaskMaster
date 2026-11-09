@@ -1,0 +1,11 @@
+TaskMaster v0.2.0
+
+- New TaskMaster-inspired shield application icon, embedded at 16–256 px.
+- Immediate sidebar navigation and selected-state highlighting; stale snapshots are rejected.
+- Correct maximization limits, per-tick ListView state updates and asynchronous shell icons.
+- Consistent themed menu/search/header/sidebar/cells.
+- Process icons and resource heat coloring; corrected mapping and numeric values.
+- Real working-set trim with physical RAM percentage before/after and detailed results.
+- Extended isolated tests for 5000 rows, navigation latency, color paths and memory trim.
+
+Network per process remains unavailable. I/O is not physical disk throughput. Working-set trim is not forced memory compression. Binaries remain unsigned.

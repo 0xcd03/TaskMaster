@@ -7,6 +7,16 @@ actionErrorText dw 512 dup(?)
 .code
 BuildActionReport PROC
   sub rsp,48h
+  mov ecx,actionCode
+  call FindMenuOwnerText
+  test rax,rax
+  jz barNativeLabel
+  lea rcx,actionLabel
+  mov rdx,rax
+  mov r8d,256
+  call lstrcpynW
+  jmp barName
+barNativeLabel:
   mov rcx,mainMenu
   mov edx,actionCode
   lea r8,actionLabel
@@ -58,6 +68,7 @@ barLocale:
   lea rdx,actionErrorText
   call lstrcatW
 barDone:
+  call AppendMemoryTrimReport
   add rsp,48h
   ret
 BuildActionReport ENDP

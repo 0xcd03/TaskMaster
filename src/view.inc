@@ -18,6 +18,8 @@ searchHint dw 'S','e','a','r','c','h',' ','n','a','m','e',' ','o','r',' ','P','I
 rememberId dd -1
 rememberBirth dq 0
 rememberMode dd -1
+rememberItem dd -1
+publishedListCount dd -1
 .data?
 align 8
 restoreItem db 88 dup(?)
@@ -25,7 +27,7 @@ restoreItem db 88 dup(?)
 .code
 CreateSearch PROC
   sub rsp,68h
-  mov ecx,200h
+  xor ecx,ecx ; one flat native border, no light 3-D client edge
   lea rdx,editClass
   xor r8d,r8d
   mov r9d,50810080h
@@ -53,6 +55,7 @@ CreateSearch ENDP
 RememberSelection PROC
   sub rsp,28h
   mov rememberId,-1
+  mov rememberItem,-1
   mov eax,frontMode
   mov rememberMode,eax
   mov rcx,gList
@@ -62,6 +65,7 @@ RememberSelection PROC
   call SendMessageW
   cmp eax,visibleCount
   jae remDone
+  mov rememberItem,eax
   lea rdx,rowMap
   mov rax,[rdx+rax*8]
   mov edx,[rax+3584]
@@ -117,6 +121,14 @@ brmAdvance:
   add rdi,4096
   jmp brmNext
 brmSort:
+  ; Process trees sort sibling lists after their aggregate metrics exist.
+  ; Fresh snapshot rows do not yet contain those aggregate values, and a
+  ; preliminary flat sort only repeats work without defining tree order.
+  cmp frontMode,0
+  jne brmSortFlat
+  cmp treeEnabled,0
+  jne brmPublish
+brmSortFlat:
   mov r12d,visibleCount
   shr r12d,1
 brmGap:
@@ -158,27 +170,18 @@ brmPublish:
   je brmFlat
   call BuildProcessTree
 brmFlat:
-  mov dword ptr [restoreItem+12],0
-  mov dword ptr [restoreItem+16],3
-  mov rcx,gList
-  mov edx,102Bh
-  mov r8,-1
-  lea r9,restoreItem
-  call SendMessageW
-  mov rcx,gList
-  mov edx,102Fh
-  mov r8d,visibleCount
-  mov r9d,3
-  call SendMessageW
+  ; Find the same identity before touching native selection. Clearing every
+  ; owner-data row each tick floods selection/UIA notifications and redraws.
+  mov r12d,-1
   xor esi,esi
   mov eax,frontMode
   cmp eax,rememberMode
-  jne brmDone
+  jne brmUpdateCount
   cmp eax,1
-  ja brmDone
+  ja brmUpdateCount
 brmRestore:
   cmp esi,visibleCount
-  jae brmDone
+  jae brmUpdateCount
   mov rax,[rbx+rsi*8]
   mov edx,[rax+3584]
   cmp edx,rememberId
@@ -186,16 +189,46 @@ brmRestore:
   mov rax,[rax+3600]
   cmp rax,rememberBirth
   jne brmRestoreNext
-  mov dword ptr [restoreItem+12],3
-  mov rcx,gList
-  mov edx,102Bh
-  mov r8d,esi
-  lea r9,restoreItem
-  call SendMessageW
-  jmp brmDone
+  mov r12d,esi
+  jmp brmUpdateCount
 brmRestoreNext:
   inc esi
   jmp brmRestore
+brmUpdateCount:
+  ; Stable snapshots retain count and scroll. Only structural changes need
+  ; LVM_SETITEMCOUNTEX; its no-invalidate/no-scroll flags preserve viewport.
+  mov eax,visibleCount
+  cmp eax,publishedListCount
+  je brmUpdateSelection
+  mov publishedListCount,eax
+  mov rcx,gList
+  mov edx,102Fh
+  mov r8d,eax
+  mov r9d,3
+  call SendMessageW
+brmUpdateSelection:
+  cmp r12d,rememberItem
+  je brmDone
+  mov dword ptr [restoreItem+16],3
+  mov dword ptr [restoreItem+12],0
+  mov r8d,rememberItem
+  cmp r8d,-1
+  je brmSelectNew
+  cmp r8d,visibleCount
+  jae brmSelectNew
+  mov rcx,gList
+  mov edx,102Bh
+  lea r9,restoreItem
+  call SendMessageW
+brmSelectNew:
+  cmp r12d,-1
+  je brmDone
+  mov dword ptr [restoreItem+12],3
+  mov rcx,gList
+  mov edx,102Bh
+  mov r8d,r12d
+  lea r9,restoreItem
+  call SendMessageW
 brmDone:
   mov rcx,gList
   xor edx,edx
@@ -212,11 +245,17 @@ BuildRowMap ENDP
 
 CompareRows PROC
   sub rsp,28h
+  cmp frontMode,0
+  jne cmpLegacy
+  call CompareProcessRows
+  jmp cmpDirection
+cmpLegacy:
   mov eax,sortColumn
   shl eax,9
   add rcx,rax
   add rdx,rax
   call StrCmpLogicalW
+cmpDirection:
   cmp sortDescending,0
   je cmpDone
   neg eax

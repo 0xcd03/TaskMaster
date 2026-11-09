@@ -101,6 +101,25 @@ sessionInit dw 512 dup(?)
 historyStatusFmt dw 512 dup(?)
 actionConfirmFmt dw 512 dup(?)
 historyIoUnavailable dw 512 dup(?)
+memoryTrimSystemFmt dw 512 dup(?)
+memoryTrimProcessFmt dw 512 dup(?)
+memoryTrimNote dw 512 dup(?)
+memoryTrimUnavailable dw 512 dup(?)
+memoryTrimSkippedFmt dw 512 dup(?)
+processStatusCaption dw 512 dup(?)
+processMemoryCaption dw 512 dup(?)
+processDiskCaption dw 512 dup(?)
+processNetworkCaption dw 512 dup(?)
+processPausedText dw 512 dup(?)
+processDeniedText dw 512 dup(?)
+shellBrand dw 512 dup(?)
+shellMemoryTitle dw 512 dup(?)
+shellMemoryLoadFmt dw 512 dup(?)
+shellMemoryDetailFmt dw 512 dup(?)
+shellMemoryLastFmt dw 512 dup(?)
+shellMemoryButton dw 512 dup(?)
+shellMemoryBusy dw 512 dup(?)
+shellMemoryNote dw 512 dup(?)
 .data
 uiStringTable label qword
 dq szTitle
@@ -204,7 +223,26 @@ dq sessionInit
 dq historyStatusFmt
 dq actionConfirmFmt
 dq historyIoUnavailable
-uiStringCount equ 101
+dq memoryTrimSystemFmt
+dq memoryTrimProcessFmt
+dq memoryTrimNote
+dq memoryTrimUnavailable
+dq memoryTrimSkippedFmt
+dq processStatusCaption
+dq processMemoryCaption
+dq processDiskCaption
+dq processNetworkCaption
+dq processPausedText
+dq processDeniedText
+dq shellBrand
+dq shellMemoryTitle
+dq shellMemoryLoadFmt
+dq shellMemoryDetailFmt
+dq shellMemoryLastFmt
+dq shellMemoryButton
+dq shellMemoryBusy
+dq shellMemoryNote
+uiStringCount equ 120
 .code
 LoadUiStrings PROC
   push rbx

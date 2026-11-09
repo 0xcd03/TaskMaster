@@ -1,7 +1,7 @@
 extern GetDpiForSystem:proc, GetDpiForWindow:proc, SetWindowPos:proc, DeleteObject:proc
 .data
 uiDpi dd 96
-uiBase dd 12,16,28,40,48,52,68,172,200,216,294,300,310,132,900,650,56,24,30,18,80
+uiBase dd 12,16,32,42,46,60,76,196,224,240,294,300,310,132,1050,700,56,24,30,18,80
 uiInset dd 12
 uiFontHeight dd 16
 uiSearchHeight dd 28
@@ -104,6 +104,10 @@ uudSearch:
   mov r9d,1
   call SendMessageW
 uudChart:
+  cmp shellWnd,0
+  je uudChartFonts
+  call UpdateShellFonts
+uudChartFonts:
   cmp dwriteFactory,0
   je uudDelete
   call CreateChartFormat
@@ -121,6 +125,15 @@ UpdateUiDpi ENDP
 LayoutSidebar PROC
   push rbx
   sub rsp,30h
+  mov rcx,shellWnd
+  xor edx,edx
+  xor r8d,r8d
+  mov r9d,uiContentLeft
+  sub r9d,uiInset
+  mov eax,gRect.rcBottom
+  mov [rsp+20h],rax
+  mov qword ptr [rsp+28h],1
+  call MoveWindow
   xor ebx,ebx
 lbsNext:
   lea rax,navButtons
@@ -137,6 +150,11 @@ lbsNext:
   inc ebx
   cmp ebx,6
   jb lbsNext
+  call LayoutMemoryButton
+  mov rcx,shellWnd
+  xor edx,edx
+  mov r8d,1
+  call InvalidateRect
   add rsp,30h
   pop rbx
   ret

@@ -1,0 +1,646 @@
+; Process presentation is independent of the seven legacy model text slots.
+; The collector queues icon paths; one isolated worker fills a bounded cache.
+; The UI only reads immutable rows, including the icon index of that snapshot.
+extern SHGetFileInfoW:proc, GetModuleFileNameW:proc, QueryFullProcessImageNameW:proc
+extern CreateThread:proc, CreateEventW:proc, WaitForSingleObject:proc, SetEvent:proc
+extern SetWindowSubclass:proc, DefSubclassProc:proc, SetDCBrushColor:proc
+extern SetTextColor:proc, SetBkMode:proc, SelectObject:proc, FrameRect:proc
+.data
+processImageList dq 0
+processHeader dq 0
+processDefaultIcon dd 0
+processGenericExe dw 'a','p','p','l','i','c','a','t','i','o','n','.','e','x','e',0
+processCpuFormat dw '%','u','.','%','u',0
+processCpuFormatRu dw '%','u',',','%','u',0
+processCpuPartialFormat dw '>','=',' ','%','u','.','%','u',0
+processCpuPartialFormatRu dw '>','=',' ','%','u',',','%','u',0
+processIntegerFormat dw '%','I','6','4','u',0
+processIntegerPartialFormat dw '>','=',' ','%','I','6','4','u',0
+processScaledFormat dw '%','I','6','4','u','.','%','u',0
+processScaledFormatRu dw '%','I','6','4','u',',','%','u',0
+processScaledPartialFormat dw '>','=',' ','%','I','6','4','u','.','%','u',0
+processScaledPartialFormatRu dw '>','=',' ','%','I','6','4','u',',','%','u',0
+processHeatDark dd 202034h,20203Ch,202046h,202052h,202060h,202070h,202080h,202090h
+processHeatLight dd 0E9F6FFh,0DDF0FFh,0CFE7FFh,0BDDCFFh,0A9CFFFh,092BFFFh,078ACFFh,05B95FFh
+.data?
+align 8
+processShellInfo db 696 dup(?)
+processIconLength dd ?
+processIconPids dd 16384 dup(?)
+processIconBirth dq 16384 dup(?)
+processIconIndices dd 16384 dup(?)
+processPausedPids dd 16384 dup(?)
+processPausedBirth dq 16384 dup(?)
+processDisplayBuffer dw 32 dup(?)
+processHeaderText dw 512 dup(?)
+.code
+InitProcessImages PROC
+  sub rsp,38h
+  lea rcx,processGenericExe
+  mov edx,80h ; FILE_ATTRIBUTE_NORMAL: generic .exe, never our product icon
+  lea r8,processShellInfo
+  mov r9d,696
+  mov qword ptr [rsp+20h],4011h ; SYSICONINDEX | SMALLICON | USEFILEATTRIBUTES
+  call SHGetFileInfoW
+  mov processImageList,rax
+  test rax,rax
+  jz ipiDone
+  mov eax,dword ptr [processShellInfo+8]
+  mov processDefaultIcon,eax
+  mov rcx,gList
+  mov edx,1003h ; LVM_SETIMAGELIST, shell retains ownership
+  mov r8d,1
+  mov r9,processImageList
+  call SendMessageW
+ipiDone:
+  add rsp,38h
+  ret
+InitProcessImages ENDP
+
+
+
+InitProcessListStyle PROC
+  sub rsp,28h
+  mov rcx,gList
+  mov edx,101Fh ; LVM_GETHEADER
+  xor r8d,r8d
+  xor r9d,r9d
+  call SendMessageW
+  mov processHeader,rax
+  mov rcx,gList
+  lea rdx,ProcessListSubclass
+  mov r8d,1
+  xor r9d,r9d
+  call SetWindowSubclass
+  call InitScrollTheme
+  add rsp,28h
+  ret
+InitProcessListStyle ENDP
+
+ProcessListSubclass PROC
+  sub rsp,28h
+  cmp edx,4Eh
+  jne plsDefault
+  mov rax,processHeader
+  cmp [r9],rax
+  jne plsDefault
+  cmp dword ptr [r9+16],-12
+  jne plsDefault
+  call ProcessHeaderCustomDraw
+  add rsp,28h
+  ret
+plsDefault:
+  call DefSubclassProc
+  add rsp,28h
+  ret
+ProcessListSubclass ENDP
+
+; Header labels remain native accessible HDITEM text; only painting is custom.
+ProcessHeaderCustomDraw PROC
+  push rbx
+  push rsi
+  push rdi
+  sub rsp,0C0h
+  mov rbx,r9
+  cmp dword ptr [rbx+24],1
+  je phcdNotify
+  cmp dword ptr [rbx+24],10001h
+  jne phcdDefault
+  mov rsi,[rbx+32]
+  mov rcx,rsi
+  mov edx,0F7F7F7h
+  cmp themeOption,0
+  je phcdBackground
+  mov edx,202020h
+phcdBackground:
+  call SetDCBrushColor
+  mov ecx,18 ; stock DC_BRUSH does not allocate a GDI object per paint
+  call GetStockObject
+  mov rdi,rax
+  mov rcx,rsi
+  lea rdx,[rbx+40]
+  mov r8,rdi
+  call FillRect
+  mov rcx,rsi
+  mov edx,0E4E4E4h
+  cmp themeOption,0
+  je phcdBorder
+  mov edx,303030h
+phcdBorder:
+  call SetDCBrushColor
+  mov rcx,rsi
+  lea rdx,[rbx+40]
+  mov r8,rdi
+  call FrameRect
+  mov qword ptr [rsp+30h],0
+  mov qword ptr [rsp+38h],0
+  mov qword ptr [rsp+40h],0
+  mov qword ptr [rsp+48h],0
+  mov qword ptr [rsp+50h],0
+  mov qword ptr [rsp+58h],0
+  mov qword ptr [rsp+60h],0
+  mov qword ptr [rsp+68h],0
+  mov qword ptr [rsp+70h],0
+  mov dword ptr [rsp+30h],2 ; HDI_TEXT
+  lea rax,processHeaderText
+  mov [rsp+38h],rax
+  mov dword ptr [rsp+48h],512
+  mov rcx,processHeader
+  mov edx,120Bh ; HDM_GETITEMW
+  mov r8,[rbx+56]
+  lea r9,[rsp+30h]
+  call SendMessageW
+  mov rcx,rsi
+  mov rdx,appFont
+  call SelectObject
+  mov [rsp+78h],rax
+  mov rcx,rsi
+  mov edx,1 ; TRANSPARENT
+  call SetBkMode
+  mov [rsp+80h],eax
+  mov rcx,rsi
+  mov edx,202020h
+  cmp themeOption,0
+  je phcdInk
+  mov edx,0EEEEEEh
+phcdInk:
+  call SetTextColor
+  mov [rsp+88h],eax
+  mov eax,[rbx+40]
+  add eax,8
+  mov [rsp+90h],eax
+  mov eax,[rbx+44]
+  mov [rsp+94h],eax
+  mov eax,[rbx+48]
+  sub eax,8
+  mov [rsp+98h],eax
+  mov eax,[rbx+52]
+  mov [rsp+9Ch],eax
+  mov eax,8824h ; SINGLELINE | VCENTER | NOPREFIX | END_ELLIPSIS
+  cmp frontMode,0
+  jne phcdText
+  cmp qword ptr [rbx+56],2
+  jb phcdText
+  or eax,2 ; DT_RIGHT for the resource figures
+phcdText:
+  mov [rsp+20h],eax
+  mov rcx,rsi
+  lea rdx,processHeaderText
+  mov r8d,-1
+  lea r9,[rsp+90h]
+  call DrawTextW
+  mov rcx,rsi
+  mov edx,[rsp+88h]
+  call SetTextColor
+  mov rcx,rsi
+  mov edx,[rsp+80h]
+  call SetBkMode
+  mov rcx,rsi
+  mov rdx,[rsp+78h]
+  call SelectObject
+  mov eax,4 ; CDRF_SKIPDEFAULT
+  jmp phcdReturn
+phcdNotify:
+  mov eax,20h
+  jmp phcdReturn
+phcdDefault:
+  xor eax,eax
+phcdReturn:
+  add rsp,0C0h
+  pop rdi
+  pop rsi
+  pop rbx
+  ret
+ProcessHeaderCustomDraw ENDP
+
+; Collector-only pause index. A label means a suspension owned by this app,
+; never an inferred OS-wide thread state.
+BuildProcessPauseMap PROC
+  push rbx
+  push rsi
+  push rdi
+  lea rdi,processPausedPids
+  xor eax,eax
+  mov ecx,8192
+  rep stosq
+  xor esi,esi
+  lea rbx,heldHandles
+bppmNext:
+  cmp esi,4096
+  jae bppmDone
+  cmp qword ptr [rbx+rsi*8],0
+  je bppmAdvance
+  lea rdx,heldPids
+  mov ecx,[rdx+rsi*4]
+  mov eax,ecx
+  and eax,16383
+  lea rdi,processPausedPids
+bppmProbe:
+  cmp dword ptr [rdi+rax*4],0
+  je bppmInsert
+  cmp [rdi+rax*4],ecx
+  je bppmInsert
+  inc eax
+  and eax,16383
+  jmp bppmProbe
+bppmInsert:
+  mov [rdi+rax*4],ecx
+  lea rdx,heldBirth
+  mov rdx,[rdx+rsi*8]
+  lea rdi,processPausedBirth
+  mov [rdi+rax*8],rdx
+bppmAdvance:
+  inc esi
+  jmp bppmNext
+bppmDone:
+  pop rdi
+  pop rsi
+  pop rbx
+  ret
+BuildProcessPauseMap ENDP
+
+; RCX row, RDX open process handle. New row tail: icon+3880, state+3884,
+; I/O bytes/sec+3888, I/O validity+3896, CPU tenths+3900, I/O text+3912.
+CollectProcessPresentation PROC
+  push rbx
+  push rsi
+  push rdi
+  sub rsp,30h
+  mov rbx,rcx
+  mov rsi,rdx
+  mov dword ptr [rbx+3884],0
+  mov eax,[rbx+3584]
+  and eax,16383
+  lea rdx,processPausedPids
+cppPauseProbe:
+  mov ecx,[rdx+rax*4]
+  test ecx,ecx
+  jz cppIcon
+  cmp ecx,[rbx+3584]
+  je cppPauseIdentity
+  inc eax
+  and eax,16383
+  jmp cppPauseProbe
+cppPauseIdentity:
+  lea rdx,processPausedBirth
+  mov rax,[rdx+rax*8]
+  cmp rax,[rbx+3600]
+  jne cppIcon
+  mov dword ptr [rbx+3884],1
+cppIcon:
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz cppRateText ; navigation changed; skip cold shell icon extraction
+  cmp qword ptr [rbx+3600],0
+  je cppRateText
+  cmp processImageList,0
+  je cppRateText
+  mov rcx,rbx
+  mov rdx,rsi
+  call CollectCachedProcessIcon
+cppRateText:
+  mov rcx,[rbx+3888]
+  lea rdx,[rbx+3912]
+  mov r8d,1024
+  call StoreScaledMetric
+  add rsp,30h
+  pop rdi
+  pop rsi
+  pop rbx
+  ret
+CollectProcessPresentation ENDP
+
+; RCX bytes/rate, RDX destination, R8 divisor. One real decimal, no float CRT.
+StoreScaledMetric PROC
+  push rbx
+  push rsi
+  sub rsp,28h
+  mov rbx,rdx
+  mov esi,r8d
+  mov rax,rcx
+  xor edx,edx
+  div rsi
+  mov r8,rax
+  mov eax,edx
+  imul rax,10
+  xor edx,edx
+  div rsi
+  mov r9d,eax
+  mov rcx,rbx
+  lea rdx,processScaledFormat
+  cmp appLanguage,0
+  je ssmFormat
+  lea rdx,processScaledFormatRu
+ssmFormat:
+  call wsprintfW
+  add rsp,28h
+  pop rsi
+  pop rbx
+  ret
+StoreScaledMetric ENDP
+
+; RCX row, EDX CPU percent in tenths. Worker-only destination.
+FormatProcessCpu PROC
+  sub rsp,28h
+  mov [rcx+3900],edx
+  add rcx,3072
+  mov eax,edx
+  xor edx,edx
+  mov r10d,10
+  div r10d
+  mov r8d,eax
+  mov r9d,edx
+  lea rdx,processCpuFormat
+  cmp appLanguage,0
+  je fpcFormat
+  lea rdx,processCpuFormatRu
+fpcFormat:
+  call wsprintfW
+  add rsp,28h
+  ret
+FormatProcessCpu ENDP
+
+; UI-owned tree aggregates preserve every OS process as an actionable row.
+FormatTreeProcessUi PROC
+  push rbx
+  sub rsp,20h
+  mov rbx,rcx
+  mov rax,[rbx+4040]
+  xor edx,edx
+  mov r10d,10
+  div r10
+  lea rcx,[rbx+4064]
+  mov r8d,eax
+  mov r9d,edx
+  lea rdx,processCpuFormat
+  cmp appLanguage,0
+  je ftpuPartial
+  lea rdx,processCpuFormatRu
+ftpuPartial:
+  mov eax,[rbx+4056]
+  cmp rax,[rbx+3736]
+  jae ftpuFormat
+  lea rdx,processCpuPartialFormat
+  cmp appLanguage,0
+  je ftpuFormat
+  lea rdx,processCpuPartialFormatRu
+ftpuFormat:
+  call wsprintfW
+  add rsp,20h
+  pop rbx
+  ret
+FormatTreeProcessUi ENDP
+
+; RCX row, EDX visible process column -> RAX stable text.
+ProcessDisplayText PROC
+  sub rsp,28h
+  mov rax,rcx
+  test edx,edx
+  jz pdtName
+  cmp edx,1
+  je pdtState
+  cmp edx,2
+  je pdtCpu
+  cmp edx,3
+  je pdtMemory
+  cmp edx,4
+  je pdtIo
+  cmp edx,5
+  je pdtUnavailable
+  lea rax,[rcx+512]
+  jmp pdtDone
+pdtName:
+  cmp treeEnabled,0
+  je pdtDone
+  mov rax,[rcx+3744]
+  jmp pdtDone
+pdtState:
+  lea rax,processDisplayBuffer
+  mov word ptr [rax],0
+  cmp dword ptr [rcx+3884],1
+  je pdtPaused
+  cmp dword ptr [rcx+3884],2
+  jne pdtDone
+  lea rax,processDeniedText
+  jmp pdtDone
+pdtPaused:
+  lea rax,processPausedText
+  jmp pdtDone
+pdtCpu:
+  cmp treeEnabled,0
+  jne pdtTreeCpu
+  cmp dword ptr [rcx+3672],0
+  je pdtUnavailable
+  lea rax,[rcx+3072]
+  jmp pdtDone
+pdtTreeCpu:
+  cmp dword ptr [rcx+4056],0
+  je pdtUnavailable
+  lea rax,[rcx+4064]
+  jmp pdtDone
+pdtMemory:
+  cmp treeEnabled,0
+  jne pdtTreeMemory
+  lea rax,[rcx+2560]
+  jmp pdtDone
+pdtTreeMemory:
+  lea rax,[rcx+3816]
+  jmp pdtDone
+pdtIo:
+  cmp treeEnabled,0
+  jne pdtTreeIo
+  cmp dword ptr [rcx+3896],0
+  je pdtUnavailable
+  lea rax,[rcx+3912]
+  jmp pdtDone
+pdtTreeIo:
+  cmp dword ptr [rcx+4060],0
+  je pdtUnavailable
+  mov rax,[rcx+4048]
+  xor edx,edx
+  mov r10d,1024
+  div r10
+  mov r8,rax
+  mov eax,edx
+  imul eax,10
+  xor edx,edx
+  div r10
+  mov r9d,eax
+  lea rdx,processScaledFormat
+  cmp appLanguage,0
+  je pdtTreeIoPartial
+  lea rdx,processScaledFormatRu
+pdtTreeIoPartial:
+  mov eax,[rcx+4060]
+  cmp rax,[rcx+3736]
+  jae pdtTreeIoFormat
+  lea rdx,processScaledPartialFormat
+  cmp appLanguage,0
+  je pdtTreeIoFormat
+  lea rdx,processScaledPartialFormatRu
+pdtTreeIoFormat:
+  lea rcx,processDisplayBuffer
+  call wsprintfW
+  lea rax,processDisplayBuffer
+  jmp pdtDone
+pdtUnavailable:
+  lea rax,unavailable
+pdtDone:
+  add rsp,28h
+  ret
+ProcessDisplayText ENDP
+
+; RCX/RDX rows. Numeric resource sorting, no lexicographic decimal errors.
+CompareProcessRows PROC
+  mov eax,sortColumn
+  test eax,eax
+  jz cprNames
+  cmp eax,1
+  je cprState
+  cmp eax,2
+  je cprCpu
+  cmp eax,3
+  je cprMemory
+  cmp eax,4
+  je cprIo
+  cmp eax,5
+  je cprEqual
+  mov eax,[rcx+3584]
+  mov edx,[rdx+3584]
+  jmp cprCompare
+cprState:
+  mov eax,[rcx+3884]
+  mov edx,[rdx+3884]
+  jmp cprCompare
+cprCpu:
+  cmp treeEnabled,0
+  je cprOwnCpu
+  mov rax,[rcx+4040]
+  mov rdx,[rdx+4040]
+  jmp cprCompare
+cprOwnCpu:
+  mov eax,[rcx+3900]
+  mov edx,[rdx+3900]
+  jmp cprCompare
+cprMemory:
+  cmp treeEnabled,0
+  je cprOwnMemory
+  mov rax,[rcx+3728]
+  mov rdx,[rdx+3728]
+  jmp cprCompare
+cprOwnMemory:
+  mov rax,[rcx+3632]
+  mov rdx,[rdx+3632]
+  jmp cprCompare
+cprIo:
+  cmp treeEnabled,0
+  je cprOwnIo
+  mov rax,[rcx+4048]
+  mov rdx,[rdx+4048]
+  jmp cprCompare
+cprOwnIo:
+  mov rax,[rcx+3888]
+  mov rdx,[rdx+3888]
+cprCompare:
+  cmp rax,rdx
+  mov eax,0
+  je cprDone
+  mov eax,1
+  ja cprDone
+  mov eax,-1
+cprDone:
+  ret
+cprEqual:
+  xor eax,eax
+  ret
+cprNames:
+  jmp StrCmpLogicalW
+CompareProcessRows ENDP
+
+; NMLVCUSTOMDRAW x64 offsets: item+56, state+64, text colors+80/+84,
+; subitem+88. Returning a color never changes the immutable process model.
+ProcessListCustomDraw PROC
+  mov eax,[r9+24]
+  cmp eax,1
+  je plcdNotify
+  cmp eax,10001h
+  je plcdNotify
+  cmp eax,30001h
+  jne plcdDefault
+  test dword ptr [r9+64],1 ; native selection stays visible
+  jnz plcdDefault
+  mov eax,0FFFFFFh
+  mov edx,202020h
+  cmp themeOption,0
+  je plcdBase
+  mov eax,202020h
+  mov edx,0EEEEEEh
+plcdBase:
+  mov [r9+84],eax
+  mov [r9+80],edx
+  cmp frontMode,0
+  jne plcdDefault
+  mov eax,[r9+56]
+  cmp eax,visibleCount
+  jae plcdDefault
+  lea rdx,rowMap
+  mov r10,[rdx+rax*8]
+  mov eax,[r9+88]
+  cmp eax,2
+  je plcdCpu
+  cmp eax,3
+  je plcdMemory
+  cmp eax,4
+  jne plcdDefault
+  cmp dword ptr [r10+3896],0
+  je plcdDefault
+  mov rax,[r10+3888]
+  cmp treeEnabled,0
+  je plcdIoScale
+  mov rax,[r10+4048]
+plcdIoScale:
+  shr rax,20
+  jmp plcdHeat
+plcdCpu:
+  cmp dword ptr [r10+3672],0
+  je plcdDefault
+  mov eax,[r10+3900]
+  cmp treeEnabled,0
+  je plcdCpuScale
+  mov rax,[r10+4040]
+plcdCpuScale:
+  xor edx,edx
+  mov ecx,50
+  div rcx
+  jmp plcdHeat
+plcdMemory:
+  cmp dword ptr [r10+3656],0
+  je plcdDefault
+  mov rax,[r10+3632]
+  cmp treeEnabled,0
+  je plcdMemoryScale
+  mov rax,[r10+3728]
+plcdMemoryScale:
+  shr rax,27 ; one step per 128 MiB, saturating
+plcdHeat:
+  cmp rax,7
+  jbe plcdPalette
+  mov eax,7
+plcdPalette:
+  lea rdx,processHeatLight
+  cmp themeOption,0
+  je plcdColor
+  lea rdx,processHeatDark
+plcdColor:
+  mov eax,[rdx+rax*4]
+  mov [r9+84],eax
+plcdDefault:
+  xor eax,eax
+  ret
+plcdNotify:
+  mov eax,20h ; notify item, then subitem draw
+  ret
+ProcessListCustomDraw ENDP
+
+include icon_worker.inc
+include scroll_theme.inc

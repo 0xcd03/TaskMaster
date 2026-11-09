@@ -54,6 +54,14 @@ btMemoryKnown:
   mov rax,[rdi+3632]
   mov [rdi+3728],rax
   mov qword ptr [rdi+3736],1
+  mov eax,[rdi+3900]
+  mov [rdi+4040],rax
+  mov rax,[rdi+3888]
+  mov [rdi+4048],rax
+  mov eax,[rdi+3672]
+  mov [rdi+4056],eax
+  mov eax,[rdi+3896]
+  mov [rdi+4060],eax
   mov eax,[rdi+3584]
   and eax,16383
   lea rdx,treeHash
@@ -154,8 +162,22 @@ btSum:
   add [rdx+3736],rcx
   mov ecx,[rax+3712]
   add [rdx+3712],ecx
+  mov rcx,[rax+4040]
+  add [rdx+4040],rcx
+  mov rcx,[rax+4048]
+  add [rdx+4048],rcx
+  mov ecx,[rax+4056]
+  add [rdx+4056],ecx
+  mov ecx,[rax+4060]
+  add [rdx+4060],ecx
   jmp btSum
 btFilter:
+  ; Aggregate columns are the values shown in tree mode. Sort every direct
+  ; sibling list after aggregation, then flatten again so subtrees stay under
+  ; their parent while siblings follow the selected column/order.
+  call SortProcessSiblings
+  call FlattenProcessTree
+  lea r12,treeOrder
   xor esi,esi
 btMatch:
   cmp esi,treeCount
@@ -296,6 +318,8 @@ btArrowStore:
   mov r8,[rdi+3736]
   call wsprintfW
 btNoCount:
+  mov rcx,rdi
+  call FormatTreeProcessUi
   inc r13d
 btOutputNext:
   inc esi
@@ -316,6 +340,171 @@ btDone:
   pop rbx
   ret
 BuildProcessTree ENDP
+
+; RCX is the first node in one sibling list. Return the sorted first node.
+; treeMap is scratch here and is rebuilt as the public visible map later.
+SortTreeSiblingList PROC
+  push rbx
+  push rsi
+  push rdi
+  push r12
+  push r13
+  sub rsp,30h
+  mov r12,rcx
+  lea rdi,treeMap
+  xor esi,esi
+stsGather:
+  test r12,r12
+  jz stsSort
+  cmp esi,8192
+  jae stsSort
+  mov [rdi+rsi*8],r12
+  inc esi
+  mov r12,[r12+3688]
+  jmp stsGather
+stsSort:
+  mov r13d,esi
+  mov eax,esi
+  shr eax,1
+  mov [rsp+20h],eax
+stsGap:
+  mov eax,[rsp+20h]
+  test eax,eax
+  jz stsRelink
+  mov esi,eax
+stsOuter:
+  cmp esi,r13d
+  jae stsNextGap
+  mov rbx,[rdi+rsi*8]
+  mov r12d,esi
+stsInner:
+  cmp r12d,[rsp+20h]
+  jb stsPlace
+  mov eax,r12d
+  sub eax,[rsp+20h]
+  mov rcx,[rdi+rax*8]
+  mov rdx,rbx
+  call CompareRows
+  test eax,eax
+  jle stsPlace
+  mov eax,r12d
+  sub eax,[rsp+20h]
+  mov rax,[rdi+rax*8]
+  mov [rdi+r12*8],rax
+  sub r12d,[rsp+20h]
+  jmp stsInner
+stsPlace:
+  mov [rdi+r12*8],rbx
+  inc esi
+  jmp stsOuter
+stsNextGap:
+  shr dword ptr [rsp+20h],1
+  jmp stsGap
+stsRelink:
+  test r13d,r13d
+  jz stsEmpty
+  xor esi,esi
+stsLink:
+  mov eax,esi
+  inc eax
+  cmp eax,r13d
+  jae stsLast
+  mov rax,[rdi+rax*8]
+  mov rdx,[rdi+rsi*8]
+  mov [rdx+3688],rax
+  inc esi
+  jmp stsLink
+stsLast:
+  mov rdx,[rdi+rsi*8]
+  mov qword ptr [rdx+3688],0
+  mov rax,[rdi]
+  jmp stsDone
+stsEmpty:
+  xor eax,eax
+stsDone:
+  add rsp,30h
+  pop r13
+  pop r12
+  pop rdi
+  pop rsi
+  pop rbx
+  ret
+SortTreeSiblingList ENDP
+
+SortProcessSiblings PROC
+  push rbx
+  push rsi
+  sub rsp,28h
+  mov rcx,treeRoot
+  call SortTreeSiblingList
+  mov treeRoot,rax
+  xor esi,esi
+spsNext:
+  cmp esi,visibleCount
+  jae spsDone
+  lea rdx,rowMap
+  mov rbx,[rdx+rsi*8]
+  mov rcx,[rbx+3696]
+  test rcx,rcx
+  jz spsAdvance
+  call SortTreeSiblingList
+  mov [rbx+3696],rax
+spsAdvance:
+  inc esi
+  jmp spsNext
+spsDone:
+  add rsp,28h
+  pop rsi
+  pop rbx
+  ret
+SortProcessSiblings ENDP
+
+; Rebuild DFS order after sibling links change. Depth values remain attached to
+; each node and are recomputed while walking the same ownership graph.
+FlattenProcessTree PROC
+  push rbx
+  push rsi
+  push rdi
+  push r12
+  sub rsp,20h
+  mov rdi,treeRoot
+  xor esi,esi
+  lea r12,treeOrder
+fptWalk:
+  test rdi,rdi
+  jz fptDone
+  mov [r12+rsi*8],rdi
+  inc esi
+  mov rax,[rdi+3696]
+  test rax,rax
+  jz fptAscend
+  mov ecx,[rdi+3704]
+  inc ecx
+  mov [rax+3704],ecx
+  mov rdi,rax
+  jmp fptWalk
+fptAscend:
+  mov rax,[rdi+3688]
+  test rax,rax
+  jnz fptSibling
+  mov rdi,[rdi+3680]
+  test rdi,rdi
+  jnz fptAscend
+  jmp fptDone
+fptSibling:
+  mov ecx,[rdi+3704]
+  mov [rax+3704],ecx
+  mov rdi,rax
+  jmp fptWalk
+fptDone:
+  mov treeCount,esi
+  add rsp,20h
+  pop r12
+  pop rdi
+  pop rsi
+  pop rbx
+  ret
+FlattenProcessTree ENDP
 
 ToggleTreeNode PROC
   sub rsp,28h

@@ -138,6 +138,7 @@ ihSanitize:
   jz ihClose
   mov word ptr [rdx+510],0
   mov qword ptr [rdx+3712],0
+  mov qword ptr [rdx+3736],0 ; runtime CPU baseline, warm up after restart
   add rdx,4096
   dec ecx
   jmp ihSanitize

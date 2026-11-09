@@ -21,6 +21,9 @@ outputs/*
 !outputs/TaskManagerX64-admin.exe
 !outputs/TaskManagerX64-release.zip
 !outputs/TaskManagerX64-source.zip
+!outputs/CHANGELOG.txt
+!outputs/verification.txt
+!outputs/SHA256SUMS.txt
 
 # User-local settings
 *.ini

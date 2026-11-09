@@ -222,6 +222,9 @@ CollectServices PROC
   jz csClose
   lea rsi,serviceBuffer
 csNext:
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz csClose
   mov eax,backCount
   cmp eax,serviceCount
   jae csClose
@@ -298,6 +301,9 @@ CollectUsers PROC
   mov rsi,wtsBuffer
   mov ebx,wtsCount
 cuNext:
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz cuFree
   test ebx,ebx
   jz cuFree
   cmp backCount,4096

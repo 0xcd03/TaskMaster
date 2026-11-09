@@ -1,5 +1,6 @@
 extern CreateMenu:proc, CreatePopupMenu:proc, AppendMenuW:proc, SetMenu:proc
 extern GetCurrentProcessId:proc, IsProcessCritical:proc, ProcessIdToSessionId:proc
+extern GetProcessInformation:proc
 extern Thread32First:proc, Thread32Next:proc, OpenThread:proc
 extern GetThreadTimes:proc, SetPriorityClass:proc, EmptyWorkingSet:proc
 extern wsprintfW:proc, QueryFullProcessImageNameW:proc, ShellExecuteW:proc
@@ -43,6 +44,7 @@ align 8
 heldTids dd 4096 dup(?)
 .data
 checkCritical dd 0
+checkProtection dd 0
 checkSession dd 0
 checkCreate dq 0
 checkExit dq 0
@@ -70,9 +72,11 @@ BuildMenus PROC
 bmLoad:
   call LoadMenuW
   mov mainMenu,rax
+  mov menuOwnerReady,0
   mov rcx,gMain
   mov rdx,rax
   call SetMenu
+  call ApplyMenuTheme
   add rsp,28h
   ret
 if 0
@@ -148,6 +152,20 @@ QueueAction PROC
   push rbx
   sub rsp,30h
   mov ebx,ecx
+  ; Navigation is a UI operation. Do not defer its visual state to a slow
+  ; process/shell/Task Scheduler scan, or block it while an action runs.
+  cmp ebx,2011
+  je qaProcesses
+  cmp ebx,2100
+  jb qaCheckBusy
+  cmp ebx,2106
+  ja qaCheckBusy
+  cmp ebx,2101 ; the thread view requires an inspected process identity
+  je qaDone
+  lea ecx,[rbx-2100]
+  call SwitchPanelNow
+  jmp qaDone
+qaCheckBusy:
   cmp actionBusy,0
   jne qaDone
   cmp ebx,2200
@@ -170,14 +188,13 @@ QueueAction PROC
   call lstrcpynW
   jmp qaConfirm
 qaNotService:
-  cmp ebx,2100
-  jb qaNotPanel
-  cmp ebx,2106
-  ja qaDone
-  sub ebx,2100
-  mov desiredMode,ebx
-  jmp qaDone
 qaNotPanel:
+  cmp ebx,2005
+  jne qaCheckPanel
+  ; Global trim obtains its own process snapshot, independent of the current tab.
+  mov actionMode,0
+  jmp qaConfirm
+qaCheckPanel:
   cmp frontMode,2
   jb qaAllowedMode
   cmp ebx,2011
@@ -288,10 +305,12 @@ qaThreads:
   mov inspectedPid,ecx
   mov rcx,actionBirth
   mov inspectedBirth,rcx
-  mov desiredMode,1
+  mov ecx,1
+  call SwitchPanelNow
   jmp qaDone
 qaProcesses:
-  mov desiredMode,0
+  xor ecx,ecx
+  call SwitchPanelNow
 qaDone:
   mov rcx,refreshEvent
   call SetEvent
@@ -299,6 +318,49 @@ qaDone:
   pop rbx
   ret
 QueueAction ENDP
+
+; ECX requested panel. Only the UI thread writes the presented model. Rows from
+; the old panel are hidden before changing columns, and remain allocated until
+; the normal immutable-snapshot exchange. ApplySnapshot rejects stale modes.
+SwitchPanelNow PROC
+  push rbx
+  sub rsp,20h
+  mov ebx,ecx
+  ; Aligned 64-bit store publishes mode and generation together. The worker
+  ; never captures a new mode with the previous request's generation.
+  mov eax,desiredGeneration
+  inc eax
+  shl rax,32
+  mov edx,ebx
+  or rax,rdx
+  mov qword ptr desiredMode,rax
+  cmp ebx,frontMode
+  je spnHighlight
+  call RememberSelection
+  mov frontMode,ebx
+  mov frontCount,0
+  mov visibleCount,0
+  mov rememberId,-1
+  mov rememberItem,-1
+  mov rememberMode,ebx
+  mov publishedListCount,0
+  mov rcx,gList
+  mov edx,102Fh ; LVM_SETITEMCOUNTEX
+  xor r8d,r8d
+  mov r9d,3
+  call SendMessageW
+  call SetModeColumns
+  call LayoutContent
+spnHighlight:
+  call InvalidateNavigation
+  mov rcx,gList
+  xor edx,edx
+  xor r8d,r8d
+  call InvalidateRect
+  add rsp,20h
+  pop rbx
+  ret
+SwitchPanelNow ENDP
 
 ; RCX process handle, EDX PID. Fail closed on critical/session query failure.
 GuardProcess PROC
@@ -318,6 +380,17 @@ GuardProcess PROC
   test eax,eax
   jz gpDenied
   cmp checkCritical,0
+  jne gpDenied
+  ; SDK processthreadsapi.h: ProcessProtectionLevelInfo=7, DWORD structure.
+  ; Accept only a positively identified unprotected process; fail closed.
+  mov rcx,rbx
+  mov edx,7
+  lea r8,checkProtection
+  mov r9d,4
+  call GetProcessInformation
+  test eax,eax
+  jz gpDenied
+  cmp checkProtection,0FFFFFFFEh ; WinBase.h PROTECTION_LEVEL_NONE
   jne gpDenied
   mov ecx,esi
   lea rdx,checkSession
@@ -349,6 +422,10 @@ RunQueuedAction PROC
   mov actionSucceeded,0
   mov actionFailed,0
   mov actionResult,0
+  cmp actionBatch,0
+  jne rqaMetricsReady
+  call BeginMemoryTrim
+rqaMetricsReady:
   cmp actionCode,2400
   jb rqaNotStartup
   call RunStartupAction
@@ -380,6 +457,11 @@ rqaSingle:
   call RunExtendedAction
   jmp rqaReport
 rqaRegular:
+  cmp actionCode,2004
+  jne rqaRegularAccess
+  mov ecx,1100h ; QUERY_LIMITED_INFORMATION | SET_QUOTA, no terminate rights
+  jmp rqaOpen
+rqaRegularAccess:
   mov ecx,1301h
   cmp actionCode,2004
   jbe rqaOpen
@@ -432,7 +514,7 @@ rqaKill:
   jmp rqaResult
 rqaTrim:
   mov rcx,rbx
-  call EmptyWorkingSet
+  call TrimProcessMemory
   jmp rqaResult
 rqaPause:
   call PauseProcessThreads
@@ -468,41 +550,11 @@ rqaResume:
   call ResumeProcessThreads
   jmp rqaReport
 rqaAll:
-  mov rsi,frontBuffer
-  mov edi,frontCount
-rqaAllNext:
-  test edi,edi
-  jz rqaReport
-  mov ecx,1100h
-  xor edx,edx
-  mov r8d,[rsi+3584]
-  call OpenProcess
-  mov rbx,rax
-  test rax,rax
-  jz rqaAllSkip
-  mov rcx,rax
-  mov edx,[rsi+3584]
-  call GuardProcess
-  test eax,eax
-  jz rqaAllClose
-  mov rcx,rbx
-  call EmptyWorkingSet
-  test eax,eax
-  jz rqaAllFail
-  inc actionSucceeded
-  jmp rqaAllClose
-rqaAllFail:
-  inc actionFailed
-rqaAllClose:
-  mov rcx,rbx
-  call CloseHandle
-rqaAllSkip:
-  add rsi,4096
-  dec edi
-  jmp rqaAllNext
+  call RunGlobalMemoryTrim
 rqaReport:
   cmp actionBatch,0
   jne rqaDone
+  call FinishMemoryTrim
   call BuildActionReport
   mov rcx,gMain
   mov edx,8002h
@@ -701,3 +753,4 @@ ReleaseSuspensions ENDP
 
 .data?
 actionTargetName dw 256 dup(?)
+include memory_trim.inc

@@ -15,6 +15,7 @@ startupActionView dd 0
 startupActionRoot dq 0
 startupActionHash dq 0
 startupCom dd 0
+taskSchedulerInitialized dd 0
 startupTestMode dd 0 ; set only by the separate ModelTest entry, never by GUI input
 taskService dq 0
 taskFolder dq 0
@@ -73,12 +74,18 @@ StartupHash ENDP
 
 InitTaskScheduler PROC
   sub rsp,38h
+  cmp taskSchedulerInitialized,0
+  jne itsDone
+  mov taskSchedulerInitialized,1
+  cmp startupCom,0
+  jne itsCreate
   xor ecx,ecx
   xor edx,edx
   call CoInitializeEx
   test eax,eax
   js itsDone
   mov startupCom,1
+itsCreate:
   lea rcx,taskClass
   xor edx,edx
   mov r8d,1
@@ -129,6 +136,9 @@ csvView:
 csvKey:
   mov startupDisabled,0
 csvState:
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz csvDone
   call CollectRegistrySource
   xor startupDisabled,1
   cmp startupDisabled,0
@@ -144,6 +154,9 @@ csvState:
   mov startupRoot,-2147483646
   jmp csvHive
 csvFolders:
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz csvDone
   mov startupKind,2
   call CollectStartupFolder
   mov startupKind,3
@@ -216,6 +229,9 @@ CollectRegistrySource PROC
 crsStart:
   mov startupIndex,0
 crsNext:
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz crsClose
   cmp backCount,8192
   jae crsClose
   mov startupNameSize,16383
@@ -406,6 +422,9 @@ csfGet:
   js csfError
   mov startupDisabled,0
 csfState:
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz csfDone
   lea rcx,startupPath
   lea rdx,startupBase
   call lstrcpyW
@@ -432,6 +451,9 @@ csfMask:
   call StartupErrorRow
   jmp csfNextState
 csfNext:
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz csfClose
   test dword ptr [startupFindData],10h
   jnz csfAdvance
   lea rcx,startupBase
@@ -540,6 +562,10 @@ CollectTaskFolder PROC
   push r13
   sub rsp,60h
   mov rbx,rcx
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz ctfDone
+  mov rcx,rbx
   lea rax,startupTaskSource
   mov startupErrorSource,rax
   cmp taskDepth,64
@@ -561,6 +587,9 @@ CollectTaskFolder PROC
   js ctfFolders
   mov esi,1
 ctfTask:
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz ctfRelease
   cmp startupTestMode,0
   jne ctfKeepTasks
   cmp desiredMode,5
@@ -651,6 +680,9 @@ ctfTaskNext:
 ctfTasksError:
   call StartupErrorRow
 ctfFolders:
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz ctfRelease
   mov rcx,rbx
   xor edx,edx
   lea r8,[rsp+38h]
@@ -666,6 +698,9 @@ ctfFolders:
   js ctfRelease
   mov esi,1
 ctfFolder:
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz ctfRelease
   cmp startupTestMode,0
   jne ctfKeepFolders
   cmp desiredMode,5

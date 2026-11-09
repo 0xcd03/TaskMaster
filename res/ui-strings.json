@@ -1,4 +1,4 @@
-﻿{
+{
   "szTitle": [
     "Task Manager x64",
     "Диспетчер задач x64"
@@ -402,5 +402,81 @@
   "historyIoUnavailable": [
     "N/A",
     "Нет данных"
+  ],
+  "memoryTrimSystemFmt": [
+    "\r\nRAM load: %u%% -> %u%%; available: %I64u -> %I64u MiB.",
+    "\r\nЗагрузка RAM: %u%% -> %u%%; доступно: %I64u -> %I64u МиБ."
+  ],
+  "memoryTrimProcessFmt": [
+    "\r\nMeasured processes: %u; working-set sum: %I64u -> %I64u MiB; private commit: %I64u -> %I64u MiB.",
+    "\r\nИзмерено процессов: %u; сумма рабочих наборов: %I64u -> %I64u МиБ; частный commit: %I64u -> %I64u МиБ."
+  ],
+  "memoryTrimNote": [
+    "\r\nOnly resident working sets are trimmed. This is not memory compression. Shared pages may be counted more than once; system changes are not solely caused by this operation. Pages can return and cause page faults.",
+    "\r\nСокращены только рабочие наборы, без сжатия памяти. Общие страницы могут учитываться повторно; системные показатели зависят и от других программ. Страницы могут вернуться в RAM и вызвать ошибки страниц (page faults)."
+  ],
+  "memoryTrimUnavailable": [
+    "\r\nSystem memory before/after measurement unavailable.",
+    "\r\nСистемные показатели памяти до/после недоступны."
+  ],
+  "memoryTrimSkippedFmt": [
+    "\r\nSkipped: %u.",
+    "\r\nПропущено: %u."
+  ],
+  "processStatusCaption": [
+    "Status",
+    "Состояние"
+  ],
+  "processMemoryCaption": [
+    "Memory, MiB (WS)",
+    "Память, МиБ (WS)"
+  ],
+  "processDiskCaption": [
+    "I/O, KiB/s",
+    "I/O, КиБ/с"
+  ],
+  "processNetworkCaption": [
+    "Network",
+    "Сеть"
+  ],
+  "processPausedText": [
+    "Paused by this app",
+    "Пауза диспетчера"
+  ],
+  "processDeniedText": [
+    "Unavailable",
+    "Недоступен"
+  ],
+  "shellBrand": [
+    "TaskMaster",
+    "TaskMaster"
+  ],
+  "shellMemoryTitle": [
+    "PC boost",
+    "Оптимизация ПК"
+  ],
+  "shellMemoryLoadFmt": [
+    "%u%% memory in use",
+    "Память занята на %u%%"
+  ],
+  "shellMemoryDetailFmt": [
+    "%I64u / %I64u MiB",
+    "%I64u / %I64u МиБ"
+  ],
+  "shellMemoryLastFmt": [
+    "Last: %u%% -> %u%%",
+    "Было: %u%% -> %u%%"
+  ],
+  "shellMemoryButton": [
+    "Optimize memory",
+    "Освободить память"
+  ],
+  "shellMemoryBusy": [
+    "Optimizing...",
+    "Выполняется..."
+  ],
+  "shellMemoryNote": [
+    "Trims resident working sets.",
+    "Сокращение рабочих наборов."
   ]
 }

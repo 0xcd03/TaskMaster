@@ -24,6 +24,10 @@ ApplicationWindowCallback PROC
   push rbx
   sub rsp,20h
   mov rbx,rcx
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz awcCancelled
+  mov rcx,rbx
   call IsWindowVisible
   test eax,eax
   jz awcDone
@@ -53,6 +57,10 @@ awcSet:
   mov [rdx+rax*4],ecx
 awcDone:
   mov eax,1
+  jmp awcReturn
+awcCancelled:
+  xor eax,eax
+awcReturn:
   add rsp,20h
   pop rbx
   ret
