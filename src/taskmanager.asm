@@ -44,6 +44,7 @@ extern SendMessageW:proc
 extern GetClientRect:proc
 extern MoveWindow:proc
 extern LoadCursorW:proc
+extern LoadIconW:proc
 extern GetStockObject:proc
 extern SetWindowTextW:proc
 extern GetDlgCtrlID:proc
@@ -81,6 +82,7 @@ BS_PUSHBUTTON equ 0h
 CW_USEDEFAULT equ 80000000h
 SW_SHOW equ 5
 IDC_ARROW equ 32512
+IDI_APP equ 103
 COLOR_WINDOW equ 5
 DEFAULT_GUI_FONT equ 17
 TH32CS_SNAPPROCESS equ 2h
@@ -434,6 +436,11 @@ SimpleEntry PROC
   mov gClass.wcProc,rdx
   mov rax,gInst
   mov gClass.wcInst,rax
+  mov rcx,gInst
+  mov edx,IDI_APP
+  call LoadIconW
+  mov gClass.wcIcon,rax
+  mov gClass.wcIconSm,rax
   xor ecx,ecx
   mov edx,IDC_ARROW
   call LoadCursorW

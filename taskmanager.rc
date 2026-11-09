@@ -4,6 +4,7 @@
 #else
 1 24 "TaskManagerX64.manifest"
 #endif
+103 ICON "res\\taskmanager.ico"
 101 MENU
 BEGIN
  POPUP "Process"

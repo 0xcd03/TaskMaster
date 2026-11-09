@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $strings = Get-Content -LiteralPath (Join-Path $root 'res/ui-strings.json') -Raw -Encoding utf8 | ConvertFrom-Json
 $asm = [Text.StringBuilder]::new()
@@ -47,6 +47,7 @@ $rc=[Text.StringBuilder]::new()
 [void]$rc.AppendLine('#else')
 [void]$rc.AppendLine('1 24 "TaskManagerX64.manifest"')
 [void]$rc.AppendLine('#endif')
+[void]$rc.AppendLine('103 ICON "res\\taskmanager.ico"')
 [void]$rc.AppendLine([IO.File]::ReadAllText((Join-Path $root 'res/menus.rc')))
 [void]$rc.AppendLine('STRINGTABLE')
 [void]$rc.AppendLine('BEGIN')

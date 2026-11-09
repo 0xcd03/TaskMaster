@@ -36,3 +36,16 @@ The model test suite passed: stale PID identity; pause/resume/trim/priority/term
 Computer-use verification observed the final localized process screen, Direct2D performance screen, startup sources (Run/RunOnce/folder/task entries), and persistent history screen. A final relaunch after the last non-visual hardening changes was stopped by the physical Escape key, so that exact post-hardening relaunch is not claimed as visually verified. Windows 11 build 22631 was used for the observed run; Windows 10 remains to be tested separately.
 
 Memory trim reduces resident working set; it does not reduce private commit and can cause later page faults. Per-process network attribution is intentionally not claimed: the performance panel reports interface totals. GPU and PDH values may be unavailable on a specific machine and are shown as `N/A`/`нет данных`.
+## Application icon and signing
+
+`make-icon.ps1` draws the TaskMaster icon and writes a native ICO container with 16, 20, 24, 32, 40, 48, 64, 128 and 256 px PNG frames. Resource 103 embeds it in the executable; the window class loads the same resource for its large/small icons. Current binaries are 109,568 bytes after adding the icon.
+
+The application is currently UNSIGNED: no publisher Code Signing certificate is available. A self-signed certificate is not a trusted publisher signature and would not establish antivirus reputation. Even a trusted signature cannot guarantee that antivirus software will never flag process/thread control operations.
+
+To sign after obtaining a Code Signing certificate with an accessible private key in Windows My store:
+
+```powershell
+.\sign-release.ps1 -CertificateThumbprint <40-hex-thumbprint> -Files .\outputs\TaskManagerX64.exe,.\outputs\TaskManagerX64-standard.exe
+```
+
+Use `-LocalMachine` for the machine certificate store. The script uses Windows SDK SignTool, SHA-256 and an RFC 3161 timestamp, then verifies with Authenticode policy. It does not export private keys or change Windows trust settings. Repackage release ZIP files after signing. Token/cloud certificates may require provider-specific setup.

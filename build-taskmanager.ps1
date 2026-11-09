@@ -6,6 +6,7 @@ $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.
 if (-not $vs) { throw 'Visual Studio Build Tools C++ is required.' }
 $vcvars = Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
 & (Join-Path $root 'build-resources.ps1')
+& (Join-Path $root 'make-icon.ps1')
 $src = Join-Path $root 'src/taskmanager.asm'
 $out = if($OutputPath){[IO.Path]::GetFullPath($OutputPath)}else{Join-Path $root 'TaskManagerX64.exe'}
 [void][IO.Directory]::CreateDirectory((Split-Path -Parent $out))
