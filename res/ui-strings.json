@@ -1,0 +1,406 @@
+﻿{
+  "szTitle": [
+    "Task Manager x64",
+    "Диспетчер задач x64"
+  ],
+  "szProcess": [
+    "Process",
+    "Процесс"
+  ],
+  "szPid": [
+    "PID",
+    "PID"
+  ],
+  "szParent": [
+    "Parent PID",
+    "PID родителя"
+  ],
+  "szThreads": [
+    "Threads",
+    "Потоки"
+  ],
+  "privateCommitCol": [
+    "Private commit (MiB)",
+    "Частный commit (МиБ)"
+  ],
+  "wsCaption": [
+    "Working set (MiB)",
+    "Рабочий набор (МиБ)"
+  ],
+  "treeCommitCaption": [
+    "Commit sum (MiB)",
+    "Сумма commit (МиБ)"
+  ],
+  "treeWsCaption": [
+    "WS sum (MiB, shared pages counted)",
+    "Сумма WS (МиБ, с повтором общих страниц)"
+  ],
+  "cpuCaption": [
+    "CPU %",
+    "ЦП %"
+  ],
+  "unavailable": [
+    "N/A",
+    "Нет данных"
+  ],
+  "threadCaption": [
+    "Thread",
+    "Поток"
+  ],
+  "threadTid": [
+    "TID",
+    "TID"
+  ],
+  "threadOwner": [
+    "Owner PID",
+    "PID процесса"
+  ],
+  "threadPriority": [
+    "Priority",
+    "Приоритет"
+  ],
+  "threadKernel": [
+    "Kernel ms",
+    "Ядро, мс"
+  ],
+  "threadUser": [
+    "User ms",
+    "Пользователь, мс"
+  ],
+  "threadKillWarning": [
+    "EXPERT: terminating a thread can corrupt its process and leave locks held. Force termination?",
+    "ЭКСПЕРТНЫЙ РЕЖИМ: завершение потока может повредить процесс и оставить блокировки занятыми. Принудительно завершить?"
+  ],
+  "serviceNameText": [
+    "Service",
+    "Служба"
+  ],
+  "displayText": [
+    "Display name",
+    "Отображаемое имя"
+  ],
+  "stateText": [
+    "State",
+    "Состояние"
+  ],
+  "typeText": [
+    "Type",
+    "Тип"
+  ],
+  "flagsText": [
+    "Flags",
+    "Флаги"
+  ],
+  "acceptedText": [
+    "Accepted controls",
+    "Доступные команды"
+  ],
+  "sessionText": [
+    "Session",
+    "Сеанс"
+  ],
+  "userText": [
+    "User",
+    "Пользователь"
+  ],
+  "stationText": [
+    "Station",
+    "Станция"
+  ],
+  "metricText": [
+    "Metric",
+    "Показатель"
+  ],
+  "valueText": [
+    "Value",
+    "Значение"
+  ],
+  "unitText": [
+    "Unit",
+    "Единица"
+  ],
+  "mbText": [
+    "MiB",
+    "МиБ"
+  ],
+  "availableText": [
+    "Available physical RAM",
+    "Доступная физическая память"
+  ],
+  "totalText": [
+    "Total physical RAM",
+    "Всего физической памяти"
+  ],
+  "loadText": [
+    "Memory load",
+    "Загрузка памяти"
+  ],
+  "commitText": [
+    "System commit charge",
+    "Системный commit"
+  ],
+  "limitText": [
+    "System commit limit",
+    "Предел системного commit"
+  ],
+  "cpuText": [
+    "CPU usage",
+    "Загрузка ЦП"
+  ],
+  "gpuText": [
+    "GPU busiest engine",
+    "Самый загруженный движок GPU"
+  ],
+  "gpuMemText": [
+    "GPU dedicated memory",
+    "Выделенная память GPU"
+  ],
+  "receiveText": [
+    "Network received (interfaces, cumulative MiB)",
+    "Получено по сети (интерфейсы, всего МиБ)"
+  ],
+  "sendText": [
+    "Network sent (interfaces, cumulative MiB)",
+    "Передано по сети (интерфейсы, всего МиБ)"
+  ],
+  "chartTitle": [
+    "Performance: last 180 samples",
+    "Производительность: последние 180 отсчётов"
+  ],
+  "chartCaptionFmt": [
+    "%s: %u / %u",
+    "%s: %u / %u"
+  ],
+  "chartUnavailableFmt": [
+    "%s: N/A",
+    "%s: нет данных"
+  ],
+  "chartFallback": [
+    "Direct2D unavailable. Live metrics remain in the table.",
+    "Direct2D недоступен. Текущие показатели доступны в таблице."
+  ],
+  "chartCpuLabel": [
+    "CPU %",
+    "ЦП %"
+  ],
+  "chartRamLabel": [
+    "RAM %",
+    "ОЗУ %"
+  ],
+  "chartGpuLabel": [
+    "GPU %",
+    "GPU %"
+  ],
+  "chartDiskLabel": [
+    "Physical disk KiB/s",
+    "Физический диск, КиБ/с"
+  ],
+  "chartNetLabel": [
+    "Network interfaces KiB/s",
+    "Сетевые интерфейсы, КиБ/с"
+  ],
+  "historyText": [
+    "Observed application history",
+    "История наблюдений приложений"
+  ],
+  "peakText": [
+    "Peak WS / Commit MiB",
+    "Пик WS / commit, МиБ"
+  ],
+  "cpuTimeText": [
+    "Observed CPU ms",
+    "Наблюдённое время ЦП, мс"
+  ],
+  "observedText": [
+    "Observed seconds",
+    "Наблюдённое время, с"
+  ],
+  "historyReadCaption": [
+    "Observed I/O read MiB",
+    "Наблюдённое чтение I/O, МиБ"
+  ],
+  "historyWriteCaption": [
+    "Observed I/O write MiB",
+    "Наблюдённая запись I/O, МиБ"
+  ],
+  "startupText": [
+    "Startup entry",
+    "Элемент автозагрузки"
+  ],
+  "commandText": [
+    "Command / file / task path",
+    "Команда / файл / путь задачи"
+  ],
+  "sourceText": [
+    "Source",
+    "Источник"
+  ],
+  "startupRightsCaption": [
+    "Required access",
+    "Требуемые права"
+  ],
+  "hkcuText": [
+    "HKCU",
+    "HKCU"
+  ],
+  "hklmText": [
+    "HKLM",
+    "HKLM"
+  ],
+  "startupTaskSource": [
+    "Task Scheduler (all triggers)",
+    "Планировщик (все триггеры)"
+  ],
+  "startupUserFolder": [
+    "User Startup folder",
+    "Папка Startup пользователя"
+  ],
+  "startupCommonFolder": [
+    "Common Startup folder",
+    "Общая папка Startup"
+  ],
+  "startupPresent": [
+    "Present (Windows policy may override)",
+    "Присутствует (запуск зависит от Windows)"
+  ],
+  "startupOff": [
+    "Disabled by TaskManagerX64",
+    "Отключён в TaskManagerX64"
+  ],
+  "startupTaskOn": [
+    "Enabled",
+    "Включена"
+  ],
+  "startupTaskOff": [
+    "Disabled",
+    "Отключена"
+  ],
+  "startupAdmin": [
+    "Administrator",
+    "Администратор"
+  ],
+  "startupUser": [
+    "Current user",
+    "Текущий пользователь"
+  ],
+  "startupAcl": [
+    "Task ACL",
+    "Права доступа к задаче"
+  ],
+  "startupNameLong": [
+    "Read only: name/data too long",
+    "Только чтение: слишком длинное имя или данные"
+  ],
+  "startupSourceFmt": [
+    "%s / %s / %u-bit",
+    "%s / %s / %u бит"
+  ],
+  "startupErrorText": [
+    "Source unavailable",
+    "Источник недоступен"
+  ],
+  "startupErrorFmt": [
+    "Win32/HRESULT: %u",
+    "Win32/HRESULT: %u"
+  ],
+  "startupWarning": [
+    "Changes affect future logins/triggers. Registry values and Startup files are kept for restore; task changes use the scheduler API. Continue?",
+    "Изменения влияют на будущие входы и триггеры. Значения реестра и файлы Startup сохраняются для восстановления; задачи изменяются через API планировщика. Продолжить?"
+  ],
+  "actionFmt": [
+    "%s: succeeded=%u, failed=%u, Win32/HRESULT=%u",
+    "%s: успешно=%u, ошибок=%u, Win32/HRESULT=%u"
+  ],
+  "actionWarning": [
+    "This may lose unsaved work. Suspending threads can deadlock applications. Trim reduces resident pages, not commit; later access can cause page faults. Tree actions affect all observed descendants. Continue?",
+    "Возможна потеря несохранённых данных. Приостановка потоков может вызвать взаимоблокировку. Очистка уменьшает resident-память, но не commit; повторный доступ может вызвать page fault. Действие над деревом затронет всех наблюдаемых потомков. Продолжить?"
+  ],
+  "blockedText": [
+    "Select a process first.",
+    "Сначала выберите процесс."
+  ],
+  "treeWarning": [
+    "Apply to the selected process and all observed descendants?",
+    "Применить к выбранному процессу и всем наблюдаемым потомкам?"
+  ],
+  "serviceStopped": [
+    "Stopped",
+    "Остановлена"
+  ],
+  "serviceStartPending": [
+    "Starting",
+    "Запускается"
+  ],
+  "serviceStopPending": [
+    "Stopping",
+    "Останавливается"
+  ],
+  "serviceRunning": [
+    "Running",
+    "Работает"
+  ],
+  "serviceContinuePending": [
+    "Resuming",
+    "Возобновляется"
+  ],
+  "servicePausePending": [
+    "Pausing",
+    "Приостанавливается"
+  ],
+  "servicePaused": [
+    "Paused",
+    "Приостановлена"
+  ],
+  "sessionActive": [
+    "Active",
+    "Активен"
+  ],
+  "sessionConnected": [
+    "Connected",
+    "Подключён"
+  ],
+  "sessionConnectQuery": [
+    "Connecting",
+    "Подключается"
+  ],
+  "sessionShadow": [
+    "Shadow",
+    "Теневой"
+  ],
+  "sessionDisconnected": [
+    "Disconnected",
+    "Отключён"
+  ],
+  "sessionIdle": [
+    "Idle",
+    "Бездействует"
+  ],
+  "sessionListen": [
+    "Listen",
+    "Ожидание"
+  ],
+  "sessionReset": [
+    "Reset",
+    "Сброс"
+  ],
+  "sessionDown": [
+    "Down",
+    "Недоступен"
+  ],
+  "sessionInit": [
+    "Initializing",
+    "Инициализация"
+  ],
+  "historyStatusFmt": [
+    "History: records=%u, load error=%u, save error=%u",
+    "История: записей=%u, ошибка загрузки=%u, ошибка сохранения=%u"
+  ],
+  "actionConfirmFmt": [
+    "%s (PID/TID %u)\r\n\r\n%s",
+    "%s (PID/TID %u)\r\n\r\n%s"
+  ],
+  "historyIoUnavailable": [
+    "N/A",
+    "Нет данных"
+  ]
+}

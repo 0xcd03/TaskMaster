@@ -1,0 +1,26 @@
+﻿# MASM/Windows build intermediates
+*.obj
+*.res
+*.map
+*.pdb
+*.ilk
+*.lib
+*.exp
+*.log
+
+# Local build output and scratch data
+work/
+smoke.exe
+smoke.obj
+TaskManagerMinimal.exe
+TaskManagerNoManifest.exe
+TaskManagerX64.exe
+outputs/*
+!outputs/TaskManagerX64.exe
+!outputs/TaskManagerX64-standard.exe
+!outputs/TaskManagerX64-admin.exe
+!outputs/TaskManagerX64-release.zip
+!outputs/TaskManagerX64-source.zip
+
+# User-local settings
+*.ini

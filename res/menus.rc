@@ -1,0 +1,139 @@
+﻿101 MENU
+BEGIN
+ POPUP "Process"
+ BEGIN
+  MENUITEM "End process / thread...",2001
+  MENUITEM "Pause...",2002
+  MENUITEM "Resume our pauses...",2003
+  MENUITEM "Trim selected working set...",2004
+  MENUITEM "Trim all eligible apps...",2005
+  MENUITEM SEPARATOR
+  MENUITEM "Normal priority",2006
+  MENUITEM "Below normal priority",2007
+  MENUITEM "Above normal priority",2008
+  MENUITEM "End process tree...",2019
+  MENUITEM "Pause process tree...",2020
+  MENUITEM "Resume our pauses in tree...",2021
+  MENUITEM "Trim process tree...",2022
+  MENUITEM "Inspect threads",2010
+  MENUITEM "Back to processes",2011
+  MENUITEM "Open file location",2012
+  MENUITEM "File properties",2013
+  MENUITEM "Write minidump...",2014
+  MENUITEM "CPU cap: 20%...",2015
+  MENUITEM "Remove our CPU cap...",2016
+  MENUITEM "Affinity: one allowed CPU...",2017
+  MENUITEM "Affinity: all system CPUs...",2018
+ END
+ POPUP "View"
+ BEGIN
+  MENUITEM "Processes",2100
+  MENUITEM "Services",2102
+  MENUITEM "Users",2103
+  MENUITEM "Performance",2104
+  MENUITEM "Startup sources",2105
+  MENUITEM "Persistent app history",2106
+ END
+ POPUP "Service"
+ BEGIN
+  MENUITEM "Start selected service...",2200
+  MENUITEM "Stop selected service...",2201
+  MENUITEM "Automatic start...",2202
+  MENUITEM "Disable startup...",2203
+ END
+ POPUP "Startup"
+ BEGIN
+  MENUITEM "Disable selected entry...",2400
+  MENUITEM "Enable / restore selected entry...",2401
+ END
+ POPUP "Settings"
+ BEGIN
+  MENUITEM "Russian (restart)",2300
+  MENUITEM "English (restart)",2301
+  MENUITEM "Tree / flat processes",2310
+  MENUITEM "History storage status",2320
+  MENUITEM "Light theme",2302
+  MENUITEM "Dark theme",2303
+  MENUITEM "Refresh: 1 second",2305
+  MENUITEM "Refresh: 3 seconds",2306
+ END
+END
+102 MENU
+BEGIN
+ POPUP "Процесс"
+ BEGIN
+  MENUITEM "Завершить процесс / поток...",2001
+  MENUITEM "Приостановить...",2002
+  MENUITEM "Снять наши приостановки...",2003
+  MENUITEM "Сократить рабочий набор...",2004
+  MENUITEM "Освободить RAM доступных приложений...",2005
+  MENUITEM SEPARATOR
+  MENUITEM "Обычный приоритет",2006
+  MENUITEM "Приоритет ниже обычного",2007
+  MENUITEM "Приоритет выше обычного",2008
+  MENUITEM "Завершить дерево процессов...",2019
+  MENUITEM "Приостановить дерево...",2020
+  MENUITEM "Снять наши приостановки дерева...",2021
+  MENUITEM "Сократить рабочие наборы дерева...",2022
+  MENUITEM "Потоки выбранного процесса",2010
+  MENUITEM "Вернуться к процессам",2011
+  MENUITEM "Открыть расположение файла",2012
+  MENUITEM "Свойства файла",2013
+  MENUITEM "Создать минидамп...",2014
+  MENUITEM "Лимит CPU: 20%...",2015
+  MENUITEM "Снять наш лимит CPU...",2016
+  MENUITEM "Привязка: один доступный CPU...",2017
+  MENUITEM "Привязка: все CPU...",2018
+ END
+ POPUP "Разделы"
+ BEGIN
+  MENUITEM "Процессы",2100
+  MENUITEM "Службы",2102
+  MENUITEM "Пользователи",2103
+  MENUITEM "Производительность",2104
+  MENUITEM "Источники автозагрузки",2105
+  MENUITEM "Постоянная история",2106
+ END
+ POPUP "Служба"
+ BEGIN
+  MENUITEM "Запустить службу...",2200
+  MENUITEM "Остановить службу...",2201
+  MENUITEM "Автоматический запуск...",2202
+  MENUITEM "Отключить запуск...",2203
+ END
+ POPUP "Автозагрузка"
+ BEGIN
+  MENUITEM "Отключить выбранный элемент...",2400
+  MENUITEM "Включить / восстановить элемент...",2401
+ END
+ POPUP "Настройки"
+ BEGIN
+  MENUITEM "Русский (перезапуск)",2300
+  MENUITEM "English (restart)",2301
+  MENUITEM "Дерево / плоский список",2310
+  MENUITEM "Состояние хранилища истории",2320
+  MENUITEM "Светлая тема",2302
+  MENUITEM "Тёмная тема",2303
+  MENUITEM "Обновление: 1 секунда",2305
+  MENUITEM "Обновление: 3 секунды",2306
+ END
+END
+STRINGTABLE
+BEGIN
+ 100 "Processes"
+ 101 "Services"
+ 102 "Users"
+ 103 "Performance"
+ 106 "Startup"
+ 107 "App history"
+ 104 "Search name or PID"
+ 105 "Operation may lose unsaved work. Pause can block other apps. Trim only reduces resident memory; it does not reduce commit. Continue?"
+ 200 "Процессы"
+ 201 "Службы"
+ 202 "Пользователи"
+ 203 "Производительность"
+ 206 "Автозагрузка"
+ 207 "История приложений"
+ 204 "Поиск по имени или PID"
+ 205 "Операция может привести к потере несохранённых данных. Пауза может блокировать другие приложения. Очистка сокращает рабочий набор, но не commit. Продолжить?"
+END
