@@ -122,6 +122,11 @@ shellMemoryBusy dw 512 dup(?)
 shellMemoryNote dw 512 dup(?)
 detailsButton dw 512 dup(?)
 actionDone dw 512 dup(?)
+hideDetailsButton dw 512 dup(?)
+memorySummaryFmt dw 512 dup(?)
+shellMemoryFinished dw 512 dup(?)
+shellMemoryFailed dw 512 dup(?)
+memoryAnimationProgressFmt dw 512 dup(?)
 .data
 uiStringTable label qword
 dq szTitle
@@ -246,7 +251,12 @@ dq shellMemoryBusy
 dq shellMemoryNote
 dq detailsButton
 dq actionDone
-uiStringCount equ 122
+dq hideDetailsButton
+dq memorySummaryFmt
+dq shellMemoryFinished
+dq shellMemoryFailed
+dq memoryAnimationProgressFmt
+uiStringCount equ 127
 .code
 LoadUiStrings PROC
   push rbx

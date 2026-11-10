@@ -22,6 +22,26 @@ threadName dq 0
 SetModeColumns PROC
   push rbx
   sub rsp,20h
+  ; Checkboxes belong only to Startup. Owner-data state images are supplied
+  ; by LVN_GETDISPINFO; Windows must not cache them against unstable row indexes.
+  mov rcx,gList
+  mov edx,1036h ; LVM_SETEXTENDEDLISTVIEWSTYLE
+  mov r8d,4 ; LVS_EX_CHECKBOXES (4000h is LVS_EX_BORDERSELECT)
+  xor r9d,r9d
+  cmp frontMode,5
+  jne smcCheckStyle
+  mov r9d,4
+smcCheckStyle:
+  call SendMessageW
+  mov rcx,gList
+  mov edx,100Bh ; LVM_SETCALLBACKMASK
+  xor r8d,r8d
+  xor r9d,r9d
+  cmp frontMode,5
+  jne smcCheckMask
+  mov r8d,0F000h ; LVIS_STATEIMAGEMASK
+smcCheckMask:
+  call SendMessageW
   mov ebx,7
 smcDelete:
   mov rcx,gList
@@ -56,7 +76,7 @@ smcDelete:
   mov r8d,125
   call GuiColumn
   mov ecx,5
-  lea rdx,processNetworkCaption
+  lea rdx,szThreads
   mov r8d,90
   call GuiColumn
   mov ecx,6

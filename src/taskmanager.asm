@@ -234,15 +234,23 @@ gMem PROCESS_MEMORY_COUNTERS_EX <>
 gBuf db 128 dup(?)
 gMsg MSG <>
 gRect RECT <>
-fitRect RECT <>
 actionBanner dq ?
 actionBannerDetails dq ?
 actionDetailsText dq ?
+reportAvailable dd 0
+reportExpanded dd 0
+reportPanelHeight dd 0
+reportSummary dw 256 dup(?)
 gClass WNDCLASSEXW <>
 
 .code
 SimpleWndProc PROC
   sub rsp,68h
+  cmp integrationMessage,0
+  je integrationUnregistered
+  cmp edx,integrationMessage
+  je integrationDispatch
+integrationUnregistered:
   cmp edx,2Ch
   je measureMenuItem
   cmp edx,2Bh
@@ -263,6 +271,10 @@ SimpleWndProc PROC
   je colorStatic
   cmp edx,WM_ERASEBKGND
   je eraseBackground
+  cmp edx,85h ; WM_NCPAINT
+  je paintMenuFrame
+  cmp edx,86h ; WM_NCACTIVATE
+  je paintMenuFrame
   cmp edx,WM_COMMAND
   je menuCommand
   cmp edx,8002h
@@ -289,8 +301,20 @@ SimpleWndProc PROC
   xor eax,eax
   add rsp,68h
   ret
+integrationDispatch:
+  call HandleIntegrationMessage
+  xor eax,eax
+  add rsp,68h
+  ret
 swp_def:
   call DefWindowProcW
+  add rsp,68h
+  ret
+paintMenuFrame:
+  call DefWindowProcW
+  mov [rsp+40h],rax
+  call PaintMenuFrame
+  mov rax,[rsp+40h]
   add rsp,68h
   ret
 measureMenuItem:
@@ -304,14 +328,25 @@ measureMenuItem:
 drawMenuItem:
   test r9,r9
   jz swp_def
+  cmp dword ptr [r9],4 ; ODT_BUTTON
+  jne drawMenuOnly
+  cmp dword ptr [r9+4],ID_BANNER_DETAILS
+  jne swp_def
+  call DrawReportButton
+  add rsp,68h
+  ret
+drawMenuOnly:
   cmp dword ptr [r9],1
   jne swp_def
   call MenuDraw
   add rsp,68h
   ret
 colorSearch:
+  cmp r9,actionDetailsText
+  je csRecognized
   cmp r9,searchWnd
   jne swp_def
+csRecognized:
   mov [rsp+40h],r8
   mov rcx,r8
   mov edx,shellTextColor
@@ -327,20 +362,24 @@ csBackground:
   add rsp,68h
   ret
 colorStatic:
+  cmp r9,actionDetailsText
+  je csRecognized ; read-only EDIT sends WM_CTLCOLORSTATIC
+  mov [rsp+40h],r8
   mov rcx,r8
   mov edx,shellTextColor
   call SetTextColor
-  mov rcx,r8
+  mov rcx,[rsp+40h]
   mov edx,1
   call SetBkMode
   mov rax,shellCardBrush
   add rsp,68h
   ret
 eraseBackground:
+  mov [rsp+40h],r8
   mov rcx,gMain
   lea rdx,gRect
   call GetClientRect
-  mov rcx,r8
+  mov rcx,[rsp+40h]
   lea rdx,gRect
   mov r8,shellBrush
   call FillRect
@@ -433,30 +472,6 @@ notTreeDouble:
   je columnClicked
   cmp dword ptr [r9+16],-177
   je displayNormalNotify
-  cmp dword ptr [r9+16],-101
-  je startupCheckNotify
-  jne moveDone
-startupCheckNotify:
-  cmp frontMode,5
-  jne moveDone
-  cmp actionBusy,0
-  jne moveDone
-  mov eax,[r9+40] ; LVN_ITEMCHANGED.uChanged
-  test eax,8 ; LVIF_STATE
-  jz moveDone
-  mov eax,[r9+32] ; LVN_ITEMCHANGED.uNewState
-  shr eax,12
-  and eax,3
-  cmp eax,1
-  je startupEnableClick
-  cmp eax,2
-  jne moveDone
-  mov ecx,2400
-  call QueueAction
-  jmp moveDone
-startupEnableClick:
-  mov ecx,2401
-  call QueueAction
   jmp moveDone
 displayNormalNotify:
   mov eax,dword ptr [r9+28]
@@ -468,10 +483,14 @@ displayNormalNotify:
   jz moveDone
   cmp frontMode,5
   jne displayStateDone
+  xor edx,edx
+  cmp dword ptr [rax+3624],0
+  je displayStartupState
   mov edx,[rax+3616]
   xor edx,1
   inc edx
   shl edx,12
+displayStartupState:
   mov [r9+36],edx
   mov dword ptr [r9+40],0F000h
 displayStateDone:
@@ -517,15 +536,22 @@ menuNormalRoute:
   and ecx,0FFFFh
   cmp ecx,ID_BANNER_DETAILS
   jne menuNormalRouteAction
-  mov rcx,actionBanner
-  lea rdx,actionMessage
-  call SetWindowTextW
+  xor reportExpanded,1
   mov rcx,actionDetailsText
-  mov edx,5
-  call ShowWindow
-  mov rcx,actionBannerDetails
   xor edx,edx
+  cmp reportExpanded,0
+  je reportShow
+  mov edx,5
+reportShow:
   call ShowWindow
+  lea rdx,detailsButton
+  cmp reportExpanded,0
+  je reportButtonLabel
+  lea rdx,hideDetailsButton
+reportButtonLabel:
+  mov rcx,actionBannerDetails
+  call SetWindowTextW
+  call LayoutContent
   jmp moveDone
 menuNormalRouteAction:
   cmp ecx,2300
@@ -551,8 +577,29 @@ doSortColumn:
   call BuildRowMap
   jmp moveDone
 actionComplete:
-  mov rcx,actionBanner
+  mov rcx,reportWnd
+  mov edx,5
+  call ShowWindow
+  mov reportAvailable,1
+  mov reportExpanded,0
+  mov rcx,actionBannerDetails
+  lea rdx,detailsButton
+  call SetWindowTextW
   lea rdx,actionDone
+  cmp actionCode,2005
+  jne actionSummaryReady
+  cmp memoryTrimBeforeValid,0
+  je actionSummaryReady
+  cmp memoryTrimAfterValid,0
+  je actionSummaryReady
+  lea rcx,reportSummary
+  lea rdx,memorySummaryFmt
+  mov r8d,dword ptr [memoryTrimBefore+4]
+  mov r9d,dword ptr [memoryTrimAfter+4]
+  call wsprintfW
+  lea rdx,reportSummary
+actionSummaryReady:
+  mov rcx,actionBanner
   call SetWindowTextW
   mov rcx,actionBanner
   mov edx,5
@@ -568,6 +615,7 @@ actionComplete:
   call ShowWindow
   call LayoutContent
   mov actionBusy,0
+  call FinishMemoryAnimation
   jmp moveDone
 SimpleWndProc ENDP
 
@@ -579,6 +627,9 @@ SimpleEntry PROC
   call GetModuleHandleW
   mov gInst,rax
   call LoadSettings
+  call InitIntegration
+  test eax,eax
+  jz simple_exit
   mov gClass.wcSize,SIZEOF WNDCLASSEXW
   mov gClass.wcStyle,3
   lea rdx,SimpleWndProc
@@ -631,7 +682,8 @@ SimpleEntry PROC
   mov gMain,rax
   test rax,rax
   jz simple_exit
-  mov rcx,rax
+  call RegisterIntegrationWindow
+  mov rcx,gMain
   mov edx,SW_SHOW
   call ShowWindow
   mov rcx,gMain
@@ -739,61 +791,6 @@ gcFormat:
   add rsp,28h
   ret
 GuiColumn ENDP
-
-; Extend the final column to the current client width. This removes the
-; default white header/client strip that otherwise appears after short tables.
-FitLastColumn PROC
-  push rbx
-  sub rsp,20h
-  cmp frontMode,0
-  je flcProcess
-  cmp frontMode,1
-  je flcThread
-  cmp frontMode,5
-  je flcStartup
-  cmp frontMode,6
-  je flcHistory
-  cmp frontMode,2
-  je flcServices
-  cmp frontMode,3
-  je flcUsers
-  mov ebx,2
-  jmp flcHaveLast
-flcProcess:
-  mov ebx,6
-  jmp flcHaveLast
-flcThread:
-  mov ebx,6
-  jmp flcHaveLast
-flcStartup:
-  mov ebx,4
-  jmp flcHaveLast
-flcHistory:
-  mov ebx,6
-  jmp flcHaveLast
-flcServices:
-  mov ebx,6
-  jmp flcHaveLast
-flcUsers:
-  mov ebx,3
-flcHaveLast:
-flcMeasure:
-  mov eax,gRect.rcRight
-  sub eax,uiContentLeft
-  sub eax,24
-  cmp eax,48
-  jge flcSet
-  mov eax,48
-flcSet:
-  mov rcx,gList
-  mov edx,101Eh
-  mov r8d,ebx
-  mov r9d,eax
-  call SendMessageW
-  add rsp,28h
-  pop rbx
-  ret
-FitLastColumn ENDP
 
 ; Context menu exposes the same actions as the command/status actions and keeps
 ; the selected row as the single source of target identity.
@@ -911,13 +908,6 @@ InitGui PROC
   call SendMessageW
   call InitProcessImages
   call InitProcessListStyle
-  ; LVS_EX_CHECKBOXES is used by the Startup panel; state images are supplied
-  ; lazily in LVN_GETDISPINFO for the virtual rows.
-  mov rcx,gList
-  mov edx,LVM_SETEXTENDEDLISTVIEWSTYLE
-  mov r8d,4000h
-  mov r9d,4000h
-  call SendMessageW
   xor ecx,ecx
   lea rdx,szProcess
   mov r8d,340
@@ -946,6 +936,7 @@ InitGui PROC
   lea rdx,cpuCaption
   mov r8d,90
   call GuiColumn
+  call CreateReportPanel
   xor ecx,ecx
   lea rdx,szStatic
   xor r8d,r8d
@@ -955,9 +946,9 @@ InitGui PROC
   mov qword ptr [rsp+28h],0
   mov qword ptr [rsp+30h],520
   mov qword ptr [rsp+38h],40
-  mov rax,gMain
+  mov rax,reportWnd
   mov [rsp+40h],rax
-  mov qword ptr [rsp+48h],ID_BANNER_DETAILS
+  mov qword ptr [rsp+48h],2602
   mov rax,gInst
   mov [rsp+50h],rax
   mov qword ptr [rsp+58h],0
@@ -974,7 +965,7 @@ InitGui PROC
   mov ecx,0
   lea rdx,szButton
   lea r8,detailsButton
-  mov r9d,50010000h
+  mov r9d,4001000Bh ; hidden until a report exists; themed owner draw
   mov eax,uiContentLeft
   add eax,530
   mov [rsp+20h],rax
@@ -984,7 +975,7 @@ InitGui PROC
   mov qword ptr [rsp+30h],90
   mov eax,uiStatusHeight
   mov [rsp+38h],rax
-  mov rax,gMain
+  mov rax,reportWnd
   mov [rsp+40h],rax
   mov qword ptr [rsp+48h],ID_BANNER_DETAILS
   mov rax,gInst
@@ -1000,11 +991,11 @@ InitGui PROC
   mov rcx,actionBannerDetails
   xor edx,edx
   call ShowWindow
-  ; Detailed report is created below and remains hidden until the action ends.
+  ; Scrollable, selectable report in the themed main window.
   xor ecx,ecx
-  lea rdx,szStatic
+  lea rdx,editClass
   xor r8d,r8d
-  mov r9d,50000000h
+  mov r9d,40210844h ; CHILD | VSCROLL | TABSTOP | READONLY | MULTILINE | AUTOVSCROLL
   mov eax,uiContentLeft
   mov [rsp+20h],rax
   mov eax,gRect.rcBottom
@@ -1013,7 +1004,7 @@ InitGui PROC
   mov qword ptr [rsp+30h],620
   mov eax,uiStatusHeight
   mov [rsp+38h],rax
-  mov rax,gMain
+  mov rax,reportWnd
   mov [rsp+40h],rax
   mov qword ptr [rsp+48h],2601
   mov rax,gInst
@@ -1030,6 +1021,26 @@ InitGui PROC
   xor edx,edx
   call ShowWindow
   call StartCollector
+  cmp uiRegressionMode,0
+  jne igAccessDone
+  call IsObservationElevated
+  test eax,eax
+  jnz igAccessDone
+  mov reportAvailable,1
+  mov rcx,actionBanner
+  lea rdx,observationHintEn
+  cmp appLanguage,0
+  je igAccessText
+  lea rdx,observationHintRu
+igAccessText:
+  call SetWindowTextW
+  mov rcx,actionBanner
+  mov edx,5
+  call ShowWindow
+  mov rcx,reportWnd
+  mov edx,5
+  call ShowWindow
+igAccessDone:
   add rsp,68h
   ret
 InitGui ENDP
@@ -1153,12 +1164,17 @@ include selftest.inc
 include panels.inc
 include view.inc
 include telemetry.inc
+include integration.inc
+include integration_tests.inc
+include memory_settings.inc
 include settings.inc
 include startup.inc
 include history.inc
 include extended.inc
 include tree.inc
 include history_store.inc
+include memory_animation.inc
+include report_panel.inc
 include charts.inc
 include chart_metrics.inc
 include startup_v2.inc

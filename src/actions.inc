@@ -301,6 +301,10 @@ qaShowConfirm:
 qaQueue:
   mov actionBusy,1
   mov actionCode,ebx
+  cmp ebx,2005
+  jne qaPublish
+  call StartMemoryAnimation
+qaPublish:
   mov actionPending,1
   jmp qaDone
 qaThreads:

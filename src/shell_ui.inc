@@ -288,6 +288,12 @@ RefreshShellMemory PROC
   setz dl
   call EnableWindow
   mov rcx,memoryButton
+  lea rdx,shellMemoryFinished
+  cmp memoryAnimationState,2
+  je rsmText
+  lea rdx,shellMemoryFailed
+  cmp memoryAnimationState,3
+  je rsmText
   lea rdx,shellMemoryButton
   cmp actionBusy,0
   je rsmText
@@ -452,11 +458,19 @@ PaintShell PROC
   mov rcx,shellHdc
   mov rdx,shellLargeFont
   call SelectObject
-  lea rcx,shellLabel
-  mov edx,24
-  lea r8d,[rbx+44]
-  mov r9d,174
-  call ShellLabel
+  ; Large 30px type needs its own 40px line box, not ShellLabel's 24px.
+  mov shellTextRect.rcLeft,24
+  lea eax,[rbx+40]
+  mov shellTextRect.rcTop,eax
+  add eax,40
+  mov shellTextRect.rcBottom,eax
+  mov shellTextRect.rcRight,198
+  mov rcx,shellHdc
+  lea rdx,shellLabel
+  mov r8d,-1
+  lea r9,shellTextRect
+  mov qword ptr [rsp+20h],8824h
+  call DrawTextW
   mov shellRect.rcLeft,24
   lea eax,[rbx+88]
   mov shellRect.rcTop,eax
@@ -519,6 +533,15 @@ psLast:
   mov r9d,176
   call ShellLabel
   lea rcx,shellMemoryNote
+  cmp memoryAnimationState,1
+  jne psNoteReady
+  lea rcx,memoryAnimationProgressText
+  lea rdx,memoryAnimationProgressFmt
+  mov r8d,memoryTrimProgress
+  mov r9d,memoryTrimTotal
+  call wsprintfW
+  lea rcx,memoryAnimationProgressText
+psNoteReady:
   mov edx,24
   lea r8d,[rbx+150]
   mov r9d,176
@@ -609,6 +632,14 @@ dsbGlyph:
   call ShellLabel
   jmp dsbDone
 dsbOptimize:
+  cmp dword ptr [rbx+4],2005
+  jne dsbOrdinaryText
+  cmp memoryAnimationState,0
+  je dsbOrdinaryText
+  mov rcx,shellHdc
+  call DrawMemoryAnimation
+  jmp dsbDone
+dsbOrdinaryText:
   mov rcx,shellHdc
   lea rdx,shellButtonText
   mov r8d,-1
@@ -652,6 +683,12 @@ swpCommand:
   call PostMessageW
   jmp swpZero
 swpTimer:
+  cmp r8d,902
+  jne swpMemorySample
+  call MemoryAnimationTick
+  jmp swpZero
+swpMemorySample:
+  call MemoryPolicyTick
   cmp movingWindow,0
   jne swpZero
   call RefreshShellMemory

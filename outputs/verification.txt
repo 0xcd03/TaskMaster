@@ -1,35 +1,35 @@
-TaskManagerX64 verification (Windows 11 x64, 2026-11-10)
+TaskManagerX64 v0.3.1 verification - Windows11 x64,2026-11-10
 
-PE checks
-- $17804159D1079B10FEA1861B9BFD57C54076B613AF13A0075A929BE2091EE895F
-- $151D6A4CCAB03420E2571D65C27071FAE6AA32464010EFF0F68CEEACDCC014BA7
-- ASLR, high entropy VA and NX flags: PASS
-- Authenticode: unsigned (no code-signing certificate was available)
+Final PE checks
+TaskManagerX64.exe: AMD64, SimpleEntry RVA 0x1612, 187904 bytes, SHA256 5B56BDED3868D20C8BA91BC2FA7A14BA7F31DC70413E90176CC45BB4BF5CE87B
+TaskManagerX64-standard.exe: AMD64, SimpleEntry RVA 0x1612, 187904 bytes, SHA256 D551E599C373A9810C8A879DB024F9955155567A90D7350D384252F4C2ACF00D
+ASLR/high entropy/NX: PASS; unsigned.
 
-Hidden UI regression
-- navigation=24, WM_NULL probes=324, max navigation=63 ms, maximum WM_NULL=16 ms
-- delayedSnapshots=13, themeAssertions=9, acceptedDuringSettle=7, nativeRows=5000, tree guides and branch glyphs: PASS, header remainder repaint and themed client erase: PASS
-- header/background theme path, panel layout and native controls: PASS
+Hidden native UI suite
+UI regression: exit=0, navigation=24, WM_NULL=324, maxNav=31 ms, maxNull=15 ms, delayedSnapshots=13, themeAssertions=13, controlAssertions=13, acceptedDuringSettle=7, nativeRows=5000
+Animation lifecycle: start disables button; WM_TIMER advances whilebusy; actual completion and failure messages stop motion; return to idle enables button and ceases frame updates: PASS
+Production GDI frame0 and frame8 differ; success/failure artwork rendered and visually inspected in work/memory-animation-preview.bmp: PASS
+Tree mouse/keyboard, report layout/fonts at100/150/200percentDPI, memory-policy threshold/hysteresis/cooldown: PASS
+Trim worker priority lowering/restoration, including not raising an already lowered priority: PASS
 
-Native model and action tests
-- stale PID identity, pause/resume, working-set trim, priority and terminate: PASS
-- RU/EN resources, 5000-row topology, collapse, ancestor search, PID reuse: PASS
-- persistent history and checksum corruption handling: PASS
-- registry/Startup-folder round trips and Task Scheduler enumeration: PASS
-- independent Task Scheduler disable/enable COM round trip: PASS
+Model/action suites
+CPU percentage EN/RU zero/full values, complete/partial aggregate text and buffer canaries, numeric sorting: PASS
+Disposable target pause/resume/trim/priority/terminate: PASS
+RU/EN resources,5000-row topology, history/checksum, disposable registry/Startup-folder roundtrips: PASS
+Task Scheduler isolated disable/enable verified independently by COM: PASS
 
-Crash fix and UI revision
-- v0.2.1 startup crash fixed: LVN_GETDISPINFO now passes the row model pointer and rejects null mappings`r`n- trailing table/header strip removed by themed header painting and edge layout
-- process, service and startup row context actions added
-- startup enabled state is represented by native checkboxes and validated identity/hash actions
-- settings menu marks active language, theme, refresh interval and tree mode
-- memory optimization result is shown in the themed in-app panel with Details
+Final executable launch
+{
+    "PID":  3352,
+    "Exited":  false,
+    "Title":  "Диспетчер задач x64 v0.3.1",
+    "Responding":  true
+}
+The existing project application was closed gracefully before replacement.
 
-Scope notes
-- Working-set trim is real EmptyWorkingSet processing with guarded targets; it is not forced Windows memory compression.
-- Per-process network attribution is shown as unavailable until a supported attribution collector is present.
-- The final interactive desktop visual pass was stopped with Escape; hidden/offscreen color and geometry checks passed.
-
-
-
-
+Scope
+Reference video: supplied21.2-second PCBoost clip; design uses a centered white rocket and moving blue speed streaks.
+Artwork was inspected as an offscreen GDI render; a live desktop screenshot was not obtained.
+No global trim of user applications was performed by automated tests. Reduced system-freeze duration has not been measured.
+Single Windows trim calls can exceed the between-call time budget; later page faults remain possible.
+Windows10 was not tested in this revision.

@@ -4,15 +4,19 @@ extern lstrcmpW:proc
 .data
 presentationName dw 'f','i','x','t','u','r','e','.','e','x','e',0
 presentationPid dw '9','0','1','2','3',0
-presentationCpu dw '1','.','5',0
+presentationThreads dw '1','2',0
+presentationCpu dw '1','.','5','%',0
+presentationCpuZero dw '0','.','0','%',0
+presentationCpuRu dw '1',',','5','%',0
 presentationMemory dw '5','1','2','.','5',0
 presentationIo dw '8','0','.','0',0
 presentationRate dw '9','6','.','0',0
-presentationMaximum dw '>','=',' ','4','2','9','4','9','6','7','2','9','5','.','9',0
-presentationCpuHalf dw '5','0','.','0',0
-presentationCpuFull dw '1','0','0','.','0',0
+presentationMaximum dw 2265h,' ','4','2','9','4','9','6','7','2','9','5','.','9','%',0
+presentationMaximumRu dw 2265h,' ','4','2','9','4','9','6','7','2','9','5',',','9','%',0
+presentationCpuHalf dw '5','0','.','0','%',0
+presentationCpuFull dw '1','0','0','.','0','%',0
 presentationTreeMemory dw '1','1','0','2',0
-presentationTreeCpu dw '3','1','.','1',0
+presentationTreeCpu dw '3','1','.','1','%',0
 presentationTreeIo dw '1','1','0','2','.','0',0
 ; PID, PPID, birth, own MiB, own CPU tenths, own KiB/s.
 ; Root A and child X consume less themselves than their competing siblings,
@@ -86,6 +90,9 @@ ProcessPresentationTests PROC
   lea rcx,[rbx+512]
   lea rdx,presentationPid
   call lstrcpyW
+  lea rcx,[rbx+1536]
+  lea rdx,presentationThreads
+  call lstrcpyW
   lea rcx,[rbx+3072]
   lea rdx,presentationCpu
   call lstrcpyW
@@ -137,9 +144,11 @@ ProcessPresentationTests PROC
   mov rcx,rbx
   mov edx,5
   call ProcessDisplayText
-  lea rdx,unavailable
-  cmp rax,rdx ; unsupported per-process network must never masquerade as zero
-  jne pptFail
+  mov rcx,rax
+  lea rdx,presentationThreads
+  call lstrcmpW
+  test eax,eax
+  jnz pptFail
   mov rcx,rbx
   mov edx,6
   call ProcessDisplayText
@@ -163,6 +172,16 @@ ProcessPresentationTests PROC
   cmp rax,rdx
   jne pptFail
   mov modelStage,1402
+  mov word ptr [rbx+1536],'2'
+  mov word ptr [rbx+1538],0
+  mov dword ptr [rbx+4096+1536],00300031h ; "10"
+  mov word ptr [rbx+4096+1540],0
+  mov sortColumn,5
+  mov rcx,rbx
+  lea rdx,[rbx+4096]
+  call CompareRows
+  test eax,eax
+  jge pptFail
   ; The 8 GiB value must not wrap to zero through a 32-bit comparison.
   mov rax,8589934592
   mov [rbx+3632],rax
@@ -300,7 +319,7 @@ ProcessPresentationTests PROC
   mov modelStage,1405
   mov rax,0C3C3C3C3C3C3C3C3h
   mov [rbx+4096],rax
-  mov rax,42949672959 ; maximum unsigned %u digits, plus decimal and >= prefix
+  mov rax,42949672959 ; maximum unsigned %u digits, decimal, lower bound and %
   mov [rbx+4040],rax
   mov qword ptr [rbx+3736],8192
   mov dword ptr [rbx+4056],0
@@ -314,6 +333,36 @@ ProcessPresentationTests PROC
   jne pptFail
   lea rcx,[rbx+4064]
   lea rdx,presentationMaximum
+  call lstrcmpW
+  test eax,eax
+  jnz pptFail
+  mov appLanguage,1
+  mov rcx,rbx
+  call FormatTreeProcessUi
+  lea rcx,[rbx+4064]
+  lea rdx,presentationMaximumRu
+  call lstrcmpW
+  test eax,eax
+  jnz pptFail
+  mov rax,0C3C3C3C3C3C3C3C3h
+  cmp [rbx+4096],rax
+  jne pptFail
+  mov rcx,rbx
+  mov edx,15
+  call FormatProcessCpu
+  lea rcx,[rbx+3072]
+  lea rdx,presentationCpuRu
+  call lstrcmpW
+  test eax,eax
+  jnz pptFail
+  cmp dword ptr [rbx+3900],15 ; display suffix must not change numeric sorting
+  jne pptFail
+  mov appLanguage,0
+  mov rcx,rbx
+  xor edx,edx
+  call FormatProcessCpu
+  lea rcx,[rbx+3072]
+  lea rdx,presentationCpuZero
   call lstrcmpW
   test eax,eax
   jnz pptFail
@@ -611,6 +660,14 @@ ptptFixture:
   call CheckTreePresentationOrder
   test eax,eax
   jnz ptptFail
+  ; Tree labels are accessible plain names. Indentation and disclosure boxes
+  ; must never leak font-dependent line/arrow characters into the text.
+  mov rax,[rbx+3744]
+  cmp word ptr [rax],'f'
+  jne ptptFail
+  mov rax,[rbx+4096+3744]
+  cmp word ptr [rax],'f'
+  jne ptptFail
   ; The root's displayed 1102 MiB must drive its position, not its own 1 MiB.
   mov rcx,rbx
   mov edx,3
@@ -718,3 +775,5 @@ ctpoFail:
   mov eax,1
   ret
 CheckTreePresentationOrder ENDP
+
+include tree_control_tests.inc

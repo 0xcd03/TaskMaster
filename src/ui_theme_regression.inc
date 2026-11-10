@@ -36,7 +36,7 @@ UiThemeRegression PROC
   call CreateCompatibleDC
   mov uiThemeDc,rax
   mov rcx,rbx
-  mov edx,256
+  mov edx,2048
   mov r8d,40
   call CreateCompatibleBitmap
   mov uiThemeBitmap,rax
@@ -117,6 +117,39 @@ utrTheme:
   lea rdx,uiThemeExpectedHeader
   cmp eax,[rdx+rsi*4]
   jne utrCleanup
+  inc uiThemeAssertions
+  ; Render the complete native header, including the formerly white tail.
+  ; Unlike the synthetic item callback above, this runs the real subclass.
+  mov uiThemeStage,135
+  mov rcx,processHeader
+  mov edx,318h ; WM_PRINTCLIENT
+  mov r8,uiThemeDc
+  mov r9d,4 ; PRF_CLIENT
+  call SendMessageW
+  mov edx,headerLastRect.rcRight
+  add edx,3
+  cmp edx,headerClientRect.rcRight
+  jae utrCleanup
+  mov rcx,uiThemeDc
+  mov r8d,2
+  call GetPixel
+  lea rdx,uiThemeExpectedHeader
+  cmp eax,[rdx+rsi*4]
+  jne utrCleanup
+  inc uiThemeAssertions
+  mov uiThemeStage,136
+  mov rcx,mainMenu
+  mov edx,4
+  call GetSubMenu
+  mov rcx,rax
+  mov edx,2302
+  add edx,esi ; light/dark current option
+  xor r8d,r8d ; MF_BYCOMMAND
+  call GetMenuState
+  cmp eax,-1
+  je utrCleanup
+  test eax,8 ; MF_CHECKED
+  jz utrCleanup
   inc uiThemeAssertions
   ; Obtain the real command's owner data, then exercise main WM_DRAWITEM.
   mov uiThemeStage,133

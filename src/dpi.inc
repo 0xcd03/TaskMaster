@@ -105,6 +105,20 @@ uudSearch:
   mov r9d,1
   call SendMessageW
 uudChart:
+  xor esi,esi
+uudReportFont:
+  lea rax,actionBanner
+  mov rcx,[rax+rsi*8]
+  test rcx,rcx
+  jz uudReportNext
+  mov edx,30h
+  mov r8,appFont
+  mov r9d,1
+  call SendMessageW
+uudReportNext:
+  inc esi
+  cmp esi,3
+  jb uudReportFont
   cmp shellWnd,0
   je uudChartFonts
   call UpdateShellFonts

@@ -173,100 +173,105 @@ acsDone:
 AddChartSample ENDP
 
 LayoutContent PROC
-  sub rsp,38h
+  sub rsp,48h
   mov rcx,gMain
   lea rdx,gRect
   call GetClientRect
+  mov eax,gRect.rcRight
+  sub eax,uiContentSpace
+  mov [rsp+30h],eax ; common right edge for search/list/chart/report
+  mov eax,gRect.rcBottom
+  sub eax,uiInset
+  mov [rsp+34h],eax ; content bottom, with outer margin
+  mov reportPanelHeight,0
+  cmp reportAvailable,0
+  je lcPanelSized
+  mov eax,uiStatusHeight
+  mov ecx,uiInset
+  lea eax,[eax+ecx*2]
+  cmp reportExpanded,0
+  je lcPanelSize
+  mov ecx,uiStatusHeight
+  imul ecx,4
+  add eax,ecx
+lcPanelSize:
+  mov ecx,gRect.rcBottom
+  sub ecx,uiListTop
+  sub ecx,uiMinListHeight
+  mov edx,uiInset
+  imul edx,4
+  sub ecx,edx
+  ; Report gets at most half the remaining content at small window heights.
+  shr ecx,1
+  cmp eax,ecx
+  jbe lcPanelClampDone
+  mov eax,ecx
+lcPanelClampDone:
+  mov reportPanelHeight,eax
+  sub [rsp+34h],eax
+lcPanelSized:
+  mov rcx,reportWnd
+  mov edx,uiContentLeft
+  mov r8d,[rsp+34h]
+  mov r9d,[rsp+30h]
+  mov eax,reportPanelHeight
+  mov [rsp+20h],rax
+  mov qword ptr [rsp+28h],1
+  call MoveWindow
+  call LayoutReportChildren
+  cmp reportAvailable,0
+  je lcAfterPanel
+  mov eax,uiInset
+  sub [rsp+34h],eax
+lcAfterPanel:
   mov rcx,chartWnd
   xor edx,edx
   cmp frontMode,4
-  jne lcShow
+  jne lcShowChart
   mov edx,5
-lcShow:
+lcShowChart:
   call ShowWindow
-  mov eax,gRect.rcRight
-  sub eax,uiContentSpace
-  cmp eax,uiMinListHeight
-  jge lcWidth
-  mov eax,uiMinListHeight
-lcWidth:
-  mov [rsp+30h],eax
-  mov eax,gRect.rcBottom
-  sub eax,uiBottomSpace
-  sub eax,uiStatusHeight
   cmp frontMode,4
-  jne lcList
-  sub eax,uiChartSpace
-lcList:
+  jne lcListSize
+  mov eax,[rsp+34h]
+  sub eax,uiListTop
+  sub eax,uiMinListHeight
+  sub eax,uiInset
+  cmp eax,uiChartHeight
+  jbe lcChartFits
+  mov eax,uiChartHeight
+lcChartFits:
+  mov [rsp+38h],eax
+  mov eax,[rsp+34h]
+  sub eax,[rsp+38h]
+  mov [rsp+34h],eax
+  mov r8d,eax
+  mov rcx,chartWnd
+  mov edx,uiContentLeft
+  mov r9d,[rsp+30h]
+  mov eax,[rsp+38h]
+  mov [rsp+20h],rax
+  mov qword ptr [rsp+28h],1
+  call MoveWindow
+  mov eax,uiInset
+  sub [rsp+34h],eax
+lcListSize:
+  mov eax,[rsp+34h]
+  sub eax,uiListTop
   cmp eax,uiMinListHeight
-  jge lcHeight
+  jge lcListHeight
   mov eax,uiMinListHeight
-lcHeight:
-  mov [rsp+20h],eax
+lcListHeight:
+  mov [rsp+20h],rax
   mov qword ptr [rsp+28h],1
   mov rcx,gList
   mov edx,uiContentLeft
   mov r8d,uiListTop
   mov r9d,[rsp+30h]
   call MoveWindow
-  ; The final column is fitted after the selected panel has finished
-  ; rebuilding its columns. WM_SIZE may arrive reentrantly during creation.
-lcSkipFit:
-  ; The result panel occupies the bottom strip and uses the same themed
-  ; background as the rest of the application.
-  cmp uiRegressionMode,0
-  jne lcSkipBanner
-  mov rcx,actionBanner
-  mov edx,uiContentLeft
-  mov eax,gRect.rcBottom
-  sub eax,uiStatusHeight
-  mov r8d,eax
-  mov r9d,gRect.rcRight
-  sub r9d,uiContentSpace
-  mov eax,uiStatusHeight
-  mov [rsp+20h],rax
-  mov qword ptr [rsp+28h],1
-  call MoveWindow
-lcSkipBanner:
-  mov rcx,actionDetailsText
-  mov edx,uiContentLeft
-  mov eax,gRect.rcBottom
-  sub eax,uiStatusHeight
-  mov r8d,eax
-  mov r9d,620
-  mov eax,uiStatusHeight
-  mov [rsp+20h],rax
-  mov qword ptr [rsp+28h],1
-  call MoveWindow
-  mov rcx,actionBannerDetails
-  mov edx,uiContentLeft
-  add edx,530
-  mov eax,gRect.rcBottom
-  sub eax,uiStatusHeight
-  mov r8d,eax
-  mov r9d,90
-  mov eax,uiStatusHeight
-  mov [rsp+20h],rax
-  mov qword ptr [rsp+28h],1
-  call MoveWindow
-  mov eax,gRect.rcBottom
-  sub eax,uiChartBottom
-  sub eax,uiStatusHeight
-  cmp eax,uiChartMinTop
-  jge lcChart
-  mov eax,uiChartMinTop
-lcChart:
-  mov r8d,eax
-  mov rcx,chartWnd
-  mov edx,uiContentLeft
-  mov r9d,[rsp+30h]
-  mov eax,uiChartHeight
-  mov [rsp+20h],rax
-  mov qword ptr [rsp+28h],1
-  call MoveWindow
   call LayoutSidebar
   call LayoutSearch
-  add rsp,38h
+  add rsp,48h
   ret
 LayoutContent ENDP
 

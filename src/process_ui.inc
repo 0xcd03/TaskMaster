@@ -11,10 +11,12 @@ processImageList dq 0
 processHeader dq 0
 processDefaultIcon dd 0
 processGenericExe dw 'a','p','p','l','i','c','a','t','i','o','n','.','e','x','e',0
-processCpuFormat dw '%','u','.','%','u',0
-processCpuFormatRu dw '%','u',',','%','u',0
-processCpuPartialFormat dw '>','=',' ','%','u','.','%','u',0
-processCpuPartialFormatRu dw '>','=',' ','%','u',',','%','u',0
+processCpuFormat dw '%','u','.','%','u','%','%',0
+processCpuFormatRu dw '%','u',',','%','u','%','%',0
+; Compact lower-bound marker leaves room for the percent suffix and NUL in
+; the 16-WCHAR aggregate field, including the maximum unsigned %u value.
+processCpuPartialFormat dw 2265h,' ','%','u','.','%','u','%','%',0
+processCpuPartialFormatRu dw 2265h,' ','%','u',',','%','u','%','%',0
 processIntegerFormat dw '%','I','6','4','u',0
 processIntegerPartialFormat dw '>','=',' ','%','I','6','4','u',0
 processScaledFormat dw '%','I','6','4','u','.','%','u',0
@@ -86,20 +88,84 @@ InitProcessListStyle PROC
 InitProcessListStyle ENDP
 
 ProcessListSubclass PROC
-  sub rsp,28h
+  sub rsp,58h
+  mov [rsp+20h],rcx
+  mov [rsp+28h],rdx
+  mov [rsp+30h],r8
+  mov [rsp+38h],r9
+  cmp frontMode,0
+  jne plsStartup
+  cmp treeEnabled,0
+  je plsNotify
+  cmp edx,201h
+  je plsTreeMouse
+  cmp edx,203h ; double-click on a disclosure must not toggle a second time
+  je plsTreeDouble
+  cmp edx,100h
+  jne plsNotify
+  mov ecx,r8d
+  call ProcessTreeKey
+  test eax,eax
+  jnz plsHandled
+  jmp plsRestore
+plsTreeMouse:
+  mov rcx,r9
+  xor edx,edx
+  call ProcessTreeMouse
+  test eax,eax
+  jnz plsHandled
+  jmp plsRestore
+plsTreeDouble:
+  mov rcx,r9
+  mov edx,1
+  call ProcessTreeMouse
+  test eax,eax
+  jnz plsHandled
+  jmp plsRestore
+plsStartup:
+  cmp frontMode,5
+  jne plsNotify
+  cmp edx,201h ; WM_LBUTTONDOWN
+  jne plsKey
+  mov rcx,r9
+  call StartupCheckboxMouse
+  test eax,eax
+  jnz plsHandled
+  jmp plsRestore
+plsKey:
+  cmp edx,100h
+  jne plsNotify
+  cmp r8d,20h ; SPACE
+  jne plsNotify
+  mov rcx,gList
+  mov edx,100Ch
+  mov r8,-1
+  mov r9d,2
+  call SendMessageW
+  mov ecx,eax
+  call ToggleStartupCheckbox
+plsHandled:
+  xor eax,eax
+  add rsp,58h
+  ret
+plsNotify:
   cmp edx,4Eh
-  jne plsDefault
+  jne plsRestore
   mov rax,processHeader
   cmp [r9],rax
-  jne plsDefault
+  jne plsRestore
   cmp dword ptr [r9+16],-12
-  jne plsDefault
+  jne plsRestore
   call ProcessHeaderCustomDraw
-  add rsp,28h
+  add rsp,58h
   ret
-plsDefault:
+plsRestore:
+  mov rcx,[rsp+20h]
+  mov rdx,[rsp+28h]
+  mov r8,[rsp+30h]
+  mov r9,[rsp+38h]
   call DefSubclassProc
-  add rsp,28h
+  add rsp,58h
   ret
 ProcessListSubclass ENDP
 
@@ -107,62 +173,100 @@ ProcessListSubclass ENDP
 ; background. Repaint that remainder after native WM_PAINT so it cannot become
 ; a white strip while retaining native header hit testing and sorting.
 ProcessHeaderSubclass PROC
-  sub rsp,38h
+  sub rsp,48h
+  cmp edx,318h ; WM_PRINTCLIENT: same render path for offscreen control tests
+  je phsPrint
+  cmp edx,14h ; WM_ERASEBKGND: suppress the default white background
+  je phsErase
   cmp edx,0Fh ; WM_PAINT
   jne phsDefault
   call DefSubclassProc
-  mov [rsp+20h],rax
+  mov [rsp+30h],rax
+  mov rcx,processHeader
+  call GetDC
+  mov [rsp+38h],rax
+  mov rcx,rax
+  mov edx,1 ; tail only, native labels already painted
+  call PaintHeaderBackground
+  mov rcx,processHeader
+  mov rdx,[rsp+38h]
+  call ReleaseDC
+  mov rax,[rsp+30h]
+  add rsp,48h
+  ret
+phsPrint:
+  mov [rsp+38h],r8
+  call DefSubclassProc
+  mov [rsp+30h],rax
+  mov rcx,[rsp+38h]
+  mov edx,1
+  call PaintHeaderBackground
+  mov rax,[rsp+30h]
+  add rsp,48h
+  ret
+phsErase:
+  mov rcx,r8
+  xor edx,edx
+  call PaintHeaderBackground
+  mov eax,1
+  add rsp,48h
+  ret
+phsDefault:
+  call DefSubclassProc
+  add rsp,48h
+  ret
+ProcessHeaderSubclass ENDP
+
+; RCX HDC, EDX tail-only. Does not depend on the parent's shared layout RECT.
+PaintHeaderBackground PROC
+  push rbx
+  push rsi
+  sub rsp,38h
+  mov rbx,rcx
+  mov esi,edx
+  test rbx,rbx
+  jz phbDone
   mov rcx,processHeader
   lea rdx,headerClientRect
   call GetClientRect
+  test esi,esi
+  jz phbFill
   mov rcx,processHeader
-  mov edx,1200h ; HDM_GETITEMCOUNT
+  mov edx,1200h
   xor r8d,r8d
   xor r9d,r9d
   call SendMessageW
   test eax,eax
-  jz phsFill
-  dec eax
-  mov r8d,eax
+  jz phbFill
+  lea r8d,[eax-1]
   mov rcx,processHeader
-  mov edx,1207h ; HDM_GETITEMRECT
+  mov edx,1207h
   lea r9,headerLastRect
   call SendMessageW
   test eax,eax
-  jz phsFill
+  jz phbFill
   mov eax,headerLastRect.rcRight
   mov headerClientRect.rcLeft,eax
-phsFill:
-  mov rcx,processHeader
-  call GetDC
-  mov [rsp+28h],rax
-  test rax,rax
-  jz phsReturn
-  mov rcx,rax
+phbFill:
+  mov rcx,rbx
   mov edx,202020h
   cmp themeOption,0
-  jne phsBrush
+  jne phbBrush
   mov edx,0F7F7F7h
-phsBrush:
+phbBrush:
   call SetDCBrushColor
   mov ecx,18
   call GetStockObject
   mov r8,rax
-  mov rcx,[rsp+28h]
+  mov rcx,rbx
   lea rdx,headerClientRect
   call FillRect
-  mov rcx,processHeader
-  mov rdx,[rsp+28h]
-  call ReleaseDC
-phsReturn:
-  mov rax,[rsp+20h]
+phbDone:
   add rsp,38h
+  pop rsi
+  pop rbx
   ret
-phsDefault:
-  call DefSubclassProc
-  add rsp,38h
-  ret
-ProcessHeaderSubclass ENDP
+PaintHeaderBackground ENDP
 
 ; Header labels remain native accessible HDITEM text; only painting is custom.
 ProcessHeaderCustomDraw PROC
@@ -492,13 +596,19 @@ ProcessDisplayText PROC
   cmp edx,4
   je pdtIo
   cmp edx,5
-  je pdtUnavailable
+  je pdtThreads
   lea rax,[rcx+512]
+  jmp pdtDone
+pdtThreads:
+  lea rax,[rcx+1536] ; exact OS-process thread count from Toolhelp
   jmp pdtDone
 pdtName:
   cmp treeEnabled,0
   je pdtDone
   mov rax,[rcx+3744]
+  test rax,rax
+  jnz pdtDone
+  mov rax,rcx
   jmp pdtDone
 pdtState:
   lea rax,processDisplayBuffer
@@ -590,7 +700,7 @@ CompareProcessRows PROC
   cmp eax,4
   je cprIo
   cmp eax,5
-  je cprEqual
+  je cprThreads
   mov eax,[rcx+3584]
   mov edx,[rdx+3584]
   jmp cprCompare
@@ -641,6 +751,10 @@ cprEqual:
   ret
 cprNames:
   jmp StrCmpLogicalW
+cprThreads:
+  add rcx,1536
+  add rdx,1536
+  jmp StrCmpLogicalW ; natural-number order: 2 precedes 10
 CompareProcessRows ENDP
 
 ; NMLVCUSTOMDRAW x64 offsets: item+56, state+64, text colors+80/+84,
@@ -653,6 +767,11 @@ ProcessListCustomDraw PROC
   je plcdNotify
   cmp eax,30001h
   jne plcdDefault
+  cmp frontMode,0
+  jne plcdNativeSelection
+  cmp dword ptr [r9+88],0
+  je PaintProcessNameCell
+plcdNativeSelection:
   test dword ptr [r9+64],1 ; native selection stays visible
   jnz plcdDefault
   mov eax,0FFFFFFh
@@ -728,5 +847,6 @@ plcdNotify:
   ret
 ProcessListCustomDraw ENDP
 
+include tree_paint.inc
 include icon_worker.inc
 include scroll_theme.inc

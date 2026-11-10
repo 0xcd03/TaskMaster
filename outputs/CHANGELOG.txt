@@ -1,21 +1,10 @@
-TaskMaster v0.2.0
+TaskMaster v0.3.1
 
-- Tables now paint their full client width without a trailing white strip; the result area uses the active application theme.
-- Added row context menus for process, service and startup actions.
-- Startup entries expose native checked state for enabled/disabled items.
-- Memory optimization results use an in-app report panel with a Details action.
-- Settings menu items mark the active language, theme, refresh interval and process-tree mode.
+- CPU values now include % in RU/EN, for individual processes and tree aggregates. Numeric sorting is unchanged; partial aggregates use >= semantics with the compact greater-or-equal glyph.
+- Added a native vector rocket/speed-streak animation inside the memory button, following the supplied PC Boost video.
+- Starts before background cleanup is queued; a dedicated33ms UI timer continues until worker completion. Shows a check mark or error indicator, then restores the button. Repeated clicks are disabled during cleanup.
+- Reports inspected snapshot entries without claiming a freed-memory progress percentage.
+- Global trim yields25ms between successes, temporarily uses BELOW_NORMAL worker priority and handles at most32 successful targets per pass. Original thread priority is restored on every exit.
+- Added isolated animation lifecycle/offscreen-render and priority restoration tests; all existing UI/model tests remain passing.
 
-- New TaskMaster-inspired shield application icon, embedded at 16–256 px.
-- Immediate sidebar navigation and selected-state highlighting; stale snapshots are rejected.
-- Correct maximization limits, per-tick ListView state updates and asynchronous shell icons.
-- Consistent themed menu/search/header/sidebar/cells.
-- Process icons and resource heat coloring; corrected mapping and numeric values.
-- Real working-set trim with physical RAM percentage before/after and detailed results.
-- Extended isolated tests for 5000 rows, navigation latency, color paths and memory trim.
-
-Network per process remains unavailable. I/O is not physical disk throughput. Working-set trim is not forced memory compression. Binaries remain unsigned.
-
-- Fixed the v0.2.1 startup crash in LVN_GETDISPINFO; added registry-style tree guides and branch glyphs.
-
-- Header remainder and menu separator now use the active theme; Details opens the full in-app report; title includes v0.2.3; process tree rows use registry-style hierarchy guides.
+The animation is not a claim that system stalls are eliminated. Individual EmptyWorkingSet calls and subsequent page faults remain controlled by Windows. The time budget is checked between calls. Global trim was not run on all user processes during automated tests. Binaries remain unsigned.

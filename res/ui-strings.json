@@ -1,7 +1,7 @@
 {
   "szTitle": [
-    "Task Manager x64 v0.2.3",
-    "Диспетчер задач x64 v0.2.3"
+    "Task Manager x64 v0.3.1",
+    "Диспетчер задач x64 v0.3.1"
   ],
   "szProcess": [
     "Process",
@@ -486,5 +486,25 @@
   "actionDone": [
     "Operation completed. Open Details for the full report.",
     "Операция завершена. Откройте «Подробнее» для полного отчёта."
+  ],
+  "hideDetailsButton": [
+    "Hide details",
+    "Скрыть"
+  ],
+  "memorySummaryFmt": [
+    "RAM usage: %u%% before, %u%% after. See details for results.",
+    "Память: было %u%%, стало %u%%. Результаты — в подробностях."
+  ],
+  "shellMemoryFinished": [
+    "Finished",
+    "Готово"
+  ],
+  "shellMemoryFailed": [
+    "See report",
+    "Смотрите отчёт"
+  ],
+  "memoryAnimationProgressFmt": [
+    "Checked: %u / %u",
+    "Проверено: %u / %u"
   ]
 }

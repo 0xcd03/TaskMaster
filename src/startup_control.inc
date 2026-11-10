@@ -46,6 +46,13 @@ QueueStartupAction PROC
   lea rcx,startupActionPath
   lea rdx,[rsi+2560]
   call lstrcpyW
+  ; Isolated UI tests capture the production target without changing Windows.
+  cmp uiRegressionMode,0
+  je qsaConfirm
+  mov uiStartupCapturedCode,ebx
+  inc uiStartupCapturedCount
+  jmp qsaDone
+qsaConfirm:
   lea rcx,actionMessage
   lea rdx,startupConfirmFmt
   mov r8,rsi
@@ -367,4 +374,73 @@ cstDone:
   pop rbx
   ret
 ChangeStartupTask ENDP
+
+; Virtual checkbox state belongs to the immutable snapshot, not native storage.
+StartupCheckboxMouse PROC
+  sub rsp,48h
+  movsx eax,cx
+  mov [rsp+20h],eax
+  sar ecx,16
+  mov [rsp+24h],ecx
+  mov rcx,gList
+  mov edx,1012h ; LVM_HITTEST
+  xor r8d,r8d
+  lea r9,[rsp+20h]
+  call SendMessageW
+  test dword ptr [rsp+28h],8 ; LVHT_ONITEMSTATEICON
+  jz scmNotHandled
+  mov ecx,eax
+  call ToggleStartupCheckbox
+  mov eax,1
+  add rsp,48h
+  ret
+scmNotHandled:
+  xor eax,eax
+  add rsp,48h
+  ret
+StartupCheckboxMouse ENDP
+
+ToggleStartupCheckbox PROC
+  push rbx
+  sub rsp,40h
+  mov ebx,ecx
+  cmp frontMode,5
+  jne tscDone
+  cmp actionBusy,0
+  jne tscDone
+  cmp ebx,visibleCount
+  jae tscDone
+  lea rax,rowMap
+  mov rax,[rax+rbx*8]
+  test rax,rax
+  jz tscDone
+  cmp dword ptr [rax+3624],0
+  je tscDone
+  mov ecx,2400 ; currently checked: disable
+  cmp dword ptr [rax+3616],0
+  je tscCommand
+  mov ecx,2401 ; currently unchecked: enable
+tscCommand:
+  mov [rsp+38h],ecx
+  mov dword ptr [rsp+20h],0
+  mov dword ptr [rsp+24h],0
+  mov dword ptr [rsp+28h],0
+  mov dword ptr [rsp+2Ch],3 ; LVITEM.state
+  mov dword ptr [rsp+30h],3 ; LVITEM.stateMask
+  mov rcx,gList
+  mov edx,102Bh ; LVM_SETITEMSTATE
+  mov r8d,ebx
+  lea r9,[rsp+20h]
+  call SendMessageW
+  mov ecx,[rsp+38h]
+  call QueueStartupAction
+  mov rcx,gList
+  xor edx,edx
+  xor r8d,r8d
+  call InvalidateRect
+tscDone:
+  add rsp,40h
+  pop rbx
+  ret
+ToggleStartupCheckbox ENDP
 extern lstrcmpiW:proc

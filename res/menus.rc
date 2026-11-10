@@ -1,4 +1,4 @@
-﻿101 MENU
+101 MENU
 BEGIN
  POPUP "Process"
  BEGIN
@@ -56,6 +56,11 @@ BEGIN
   MENUITEM "Dark theme",2303
   MENUITEM "Refresh: 1 second",2305
   MENUITEM "Refresh: 3 seconds",2306
+  MENUITEM SEPARATOR
+  MENUITEM "Run only one instance",2330
+  MENUITEM "Replace Windows Task Manager...",2331
+  MENUITEM "Automatic memory optimization",2340
+  MENUITEM "Memory threshold...",2341
  END
 END
 102 MENU
@@ -116,6 +121,11 @@ BEGIN
   MENUITEM "Тёмная тема",2303
   MENUITEM "Обновление: 1 секунда",2305
   MENUITEM "Обновление: 3 секунды",2306
+  MENUITEM SEPARATOR
+  MENUITEM "Запуск только одной копии",2330
+  MENUITEM "Заменить штатный Диспетчер задач...",2331
+  MENUITEM "Автоматическая оптимизация памяти",2340
+  MENUITEM "Порог занятой памяти...",2341
  END
 END
 STRINGTABLE
@@ -136,4 +146,29 @@ BEGIN
  207 "История приложений"
  204 "Поиск по имени или PID"
  205 "Операция может привести к потере несохранённых данных. Пауза может блокировать другие приложения. Очистка сокращает рабочий набор, но не commit. Продолжить?"
+END
+
+301 DIALOGEX 0,0,260,112
+STYLE 0x80C800C0
+CAPTION "Memory optimization"
+FONT 9,"Segoe UI"
+BEGIN
+ LTEXT "Start when physical memory usage reaches:",-1,12,12,236,14
+ EDITTEXT 3001,12,32,52,16,0x50012080
+ LTEXT "% (50-95)",-1,70,34,100,14
+ LTEXT "Sustained pressure for 10 seconds; at most once every 5 minutes. Active apps are skipped.",-1,12,57,236,25
+ DEFPUSHBUTTON "Save",1,130,89,55,16
+ PUSHBUTTON "Cancel",2,191,89,55,16
+END
+302 DIALOGEX 0,0,260,112
+STYLE 0x80C800C0
+CAPTION "Оптимизация памяти"
+FONT 9,"Segoe UI"
+BEGIN
+ LTEXT "Запускать при занятой физической памяти:",-1,12,12,236,14
+ EDITTEXT 3001,12,32,52,16,0x50012080
+ LTEXT "% (50–95)",-1,70,34,100,14
+ LTEXT "Превышение в течение 10 секунд; не чаще раза в 5 минут. Активные приложения пропускаются.",-1,12,57,236,25
+ DEFPUSHBUTTON "Сохранить",1,130,89,55,16
+ PUSHBUTTON "Отмена",2,191,89,55,16
 END

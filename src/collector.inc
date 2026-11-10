@@ -137,6 +137,7 @@ CollectorMain PROC
   mov startupCom,1
 cmHistoryInit:
   call InitHistoryStore
+  call EnableObservationPrivilege
 cmLoop:
   cmp collectorStop,0
   jne cmExit
@@ -424,7 +425,9 @@ crNext:
   lea rdx,unavailable
   call lstrcpyW
   mov qword ptr [rdi+3600],0
-  mov ecx,410h
+  ; Do not require VM_READ merely to observe CPU, I/O and creation time.
+  ; Reduced-rights queries work for many services that deny a full query handle.
+  mov ecx,1000h ; PROCESS_QUERY_LIMITED_INFORMATION
   xor edx,edx
   mov r8d,dword ptr [processBuffer+8]
   call OpenProcess
@@ -437,7 +440,26 @@ crNext:
   mov dword ptr [memoryBuffer],80
   call GetProcessMemoryInfo
   test eax,eax
+  jnz crMemoryAvailable
+  ; Legacy memory API access can require QUERY_INFORMATION | VM_READ.
+  ; Keep the limited handle even when this optional stronger query is denied.
+  mov ecx,410h
+  xor edx,edx
+  mov r8d,dword ptr [rdi+3584]
+  call OpenProcess
+  mov r12,rax
+  test rax,rax
   jz crTimes
+  mov rcx,r12
+  lea rdx,memoryBuffer
+  mov r8d,80
+  call GetProcessMemoryInfo
+  mov r13d,eax
+  mov rcx,r12
+  call CloseHandle
+  test r13d,r13d
+  jz crTimes
+crMemoryAvailable:
   mov dword ptr [rdi+3656],1
   mov rcx,qword ptr [memoryBuffer+72]
   mov [rdi+3624],rcx

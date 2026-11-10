@@ -3,6 +3,7 @@
 extern GetMenuItemCount:proc, GetMenuItemInfoW:proc, SetMenuItemInfoW:proc
 extern GetSubMenu:proc, SetMenuInfo:proc, DrawMenuBar:proc
 extern CheckMenuItem:proc
+extern GetMenuBarInfo:proc, GetWindowRect:proc, GetWindowDC:proc, ClientToScreen:proc
 extern GetDC:proc, ReleaseDC:proc, GetTextExtentPoint32W:proc
 .data
 menuThemeBrush dq 0
@@ -12,10 +13,11 @@ menuOwnerCount dd 0
 menuOwnerReady dd 0
 menuTextColor dd 202020h
 menuMutedColor dd 707070h
+menuCheckGlyph dw 2713h,0
 .data?
 align 8
-menuOwnerEntries db 64*32 dup(?)
-menuOwnerLabels dw 64*512 dup(?)
+menuOwnerEntries db 128*32 dup(?)
+menuOwnerLabels dw 128*512 dup(?)
 menuTempText dw 512 dup(?)
 .code
 ApplyMenuBrushes PROC
@@ -110,7 +112,7 @@ tmtNext:
   test eax,eax
   jz tmtAdvance
   mov eax,menuOwnerCount
-  cmp eax,64
+  cmp eax,128
   jae tmtAdvance
   mov edi,eax
   shl rdi,5
@@ -178,7 +180,7 @@ RefreshSettingsChecks PROC
   mov rcx,rbx
   mov edx,2300
   xor r8d,r8d
-  cmp appLanguage,1
+  cmp selectedLanguage,1
   jne rscRu
   mov r8d,8
 rscRu:
@@ -186,7 +188,7 @@ rscRu:
   mov rcx,rbx
   mov edx,2301
   xor r8d,r8d
-  cmp appLanguage,0
+  cmp selectedLanguage,0
   jne rscEn
   mov r8d,8
 rscEn:
@@ -231,7 +233,17 @@ rscSlow:
   mov r8d,8
 rscTree:
   call CheckMenuItem
+  mov rcx,rbx
+  mov edx,2340
+  xor r8d,r8d
+  cmp memoryPolicyAutoEnabled,0
+  je rscAuto
+  mov r8d,8
+rscAuto:
+  call CheckMenuItem
 rscDone:
+  call UpdateMemoryMenuLabel
+  call RefreshIntegrationChecks
   add rsp,20h
   pop rbx
   ret
@@ -241,10 +253,7 @@ RefreshSettingsChecks ENDP
 ApplyMenuTheme PROC
   sub rsp,28h
   call ApplyMenuBrushes
-  cmp uiRegressionMode,0
-  jne amtSkipChecks
   call RefreshSettingsChecks
-amtSkipChecks:
   cmp menuOwnerReady,0
   jne amtPaint
   mov menuOwnerCount,0
@@ -255,10 +264,12 @@ amtSkipChecks:
   call ThemeMenuTree
   mov menuOwnerReady,1
 amtPaint:
+  call UpdateMemoryMenuLabel
   mov rcx,gMain
   test rcx,rcx
   jz amtDone
   call DrawMenuBar
+  call PaintMenuFrame
 amtDone:
   add rsp,28h
   ret
@@ -406,6 +417,31 @@ mdInk:
   jz mdText
   or dword ptr [rsp+20h],1 ; DT_CENTER menu bar labels
 mdText:
+  ; Owner-draw menus must paint their own checked indicator.
+  test dword ptr [rdi+20],80000000h
+  jnz mdLabel
+  test dword ptr [rbx+16],8 ; ODS_CHECKED
+  jz mdPopupPadding
+  mov eax,[rsp+48h]
+  mov [rsp+58h],eax
+  mov eax,[rsp+40h]
+  add eax,20
+  mov [rsp+48h],eax
+  mov rcx,rsi
+  lea rdx,menuCheckGlyph
+  mov r8d,1
+  lea r9,[rsp+40h]
+  call DrawTextW
+  mov eax,[rsp+58h]
+  mov [rsp+48h],eax
+mdPopupPadding:
+  add dword ptr [rsp+40h],24
+mdLabel:
+  mov dword ptr [rsp+20h],8824h
+  test dword ptr [rdi+20],80000000h
+  jz mdLabelDraw
+  or dword ptr [rsp+20h],1
+mdLabelDraw:
   mov rcx,rsi
   mov rdx,[rdi+8]
   mov r8d,[rdi+4]
@@ -459,3 +495,106 @@ fmotFound:
 fmotDone:
   ret
 FindMenuOwnerText ENDP
+
+; USER32 draws the menu/client seam in the non-client frame, outside WM_PAINT.
+; Use its actual menu and client geometry, so resizing and DPI retain hit areas.
+PaintMenuFrame PROC
+  sub rsp,0A8h
+  cmp menuThemeBrush,0
+  je pmfDone
+  mov dword ptr [rsp+30h],48 ; MENUBARINFO, x64
+  mov rcx,gMain
+  mov edx,-3 ; OBJID_MENU
+  xor r8d,r8d
+  lea r9,[rsp+30h]
+  call GetMenuBarInfo
+  test eax,eax
+  jz pmfDone
+  mov rcx,gMain
+  lea rdx,[rsp+60h]
+  call GetWindowRect
+  test eax,eax
+  jz pmfDone
+  mov qword ptr [rsp+70h],0
+  mov rcx,gMain
+  lea rdx,[rsp+70h]
+  call ClientToScreen
+  test eax,eax
+  jz pmfDone
+  mov eax,[rsp+34h] ; rcBar.left
+  sub eax,[rsp+60h]
+  mov [rsp+80h],eax
+  mov eax,[rsp+40h] ; rcBar.bottom
+  dec eax
+  sub eax,[rsp+64h]
+  mov [rsp+84h],eax
+  mov eax,[rsp+3Ch] ; rcBar.right
+  sub eax,[rsp+60h]
+  mov [rsp+88h],eax
+  mov eax,[rsp+74h] ; client top in screen coordinates
+  sub eax,[rsp+64h]
+  mov [rsp+8Ch],eax
+  cmp eax,[rsp+84h]
+  jle pmfDone
+  mov rcx,gMain
+  call GetWindowDC
+  mov [rsp+90h],rax
+  test rax,rax
+  jz pmfDone
+  mov rcx,rax
+  lea rdx,[rsp+80h]
+  mov r8,menuThemeBrush
+  call FillRect
+  mov rcx,gMain
+  mov rdx,[rsp+90h]
+  call ReleaseDC
+pmfDone:
+  add rsp,0A8h
+  ret
+PaintMenuFrame ENDP
+
+DrawReportButton PROC
+  push rbx
+  sub rsp,40h
+  mov rbx,r9
+  mov rcx,[rbx+32]
+  call SaveDC
+  mov [rsp+30h],eax
+  mov rcx,[rbx+32]
+  lea rdx,[rbx+40]
+  mov r8,menuThemeSelectedBrush
+  call FillRect
+  mov rcx,[rbx+32]
+  mov edx,menuTextColor
+  call SetTextColor
+  mov rcx,[rbx+32]
+  mov edx,1
+  call SetBkMode
+  mov rcx,[rbx+32]
+  mov rdx,appFont
+  call SelectObject
+  lea rdx,detailsButton
+  cmp reportExpanded,0
+  je drbLabel
+  lea rdx,hideDetailsButton
+drbLabel:
+  mov rcx,[rbx+32]
+  mov r8d,-1
+  lea r9,[rbx+40]
+  mov qword ptr [rsp+20h],8825h
+  call DrawTextW
+  test dword ptr [rbx+16],10h ; keyboard focus
+  jz drbRestore
+  mov rcx,[rbx+32]
+  lea rdx,[rbx+40]
+  mov r8,menuThemeLineBrush
+  call FrameRect
+drbRestore:
+  mov rcx,[rbx+32]
+  mov edx,[rsp+30h]
+  call RestoreDC
+  mov eax,1
+  add rsp,40h
+  pop rbx
+  ret
+DrawReportButton ENDP

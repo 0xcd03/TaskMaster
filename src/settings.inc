@@ -7,6 +7,7 @@ extern SetWindowTheme:proc, SetBkColor:proc
 .data
 align 8
 appLanguage dd 1
+selectedLanguage dd 1
 themeOption dd 0
 refreshInterval dd 1000
 configReady dd 0
@@ -73,6 +74,7 @@ LoadSettings PROC
   call GetPrivateProfileIntW
   and eax,1
   mov appLanguage,eax
+  mov selectedLanguage,eax
   lea rcx,configSection
   lea rdx,themeKey
   xor r8d,r8d
@@ -91,6 +93,7 @@ LoadSettings PROC
   ja lsFont
   mov refreshInterval,eax
 lsFont:
+  call LoadMemorySettings
   call GetDpiForSystem
   mov uiDpi,eax
   call RecalcUiScale
@@ -246,6 +249,19 @@ atListTheme:
 atSearchTheme:
   xor r8d,r8d
   call SetWindowTheme
+  mov rcx,actionDetailsText
+  lea rdx,explorerThemeName
+  cmp themeOption,0
+  je atReportTheme
+  lea rdx,darkExplorerThemeName
+atReportTheme:
+  xor r8d,r8d
+  call SetWindowTheme
+  mov rcx,reportWnd
+  xor edx,edx
+  xor r8d,r8d
+  mov r9d,85h ; invalidate/erase/all children
+  call RedrawWindow
   mov rcx,gMain
   mov edx,20
   lea r8,themeOption
@@ -301,6 +317,14 @@ SettingsCommand PROC
   call QueueStartupAction
   jmp scDone
 scOrdinary:
+  cmp ecx,2330
+  je scIntegration
+  cmp ecx,2331
+  je scIntegration
+  cmp ecx,2340
+  je scMemoryPolicy
+  cmp ecx,2341
+  je scMemoryPolicy
   cmp ecx,2320
   je scHistoryStatus
   cmp ecx,2310
@@ -317,6 +341,12 @@ scOrdinary:
   je scFast
   cmp ecx,2306
   je scSlow
+  jmp scDone
+scIntegration:
+  call IntegrationCommand
+  jmp scDone
+scMemoryPolicy:
+  call MemorySettingsCommand
   jmp scDone
 scHistoryStatus:
   lea rcx,actionMessage
@@ -338,10 +368,12 @@ scTree:
   call BuildRowMap
   jmp scDone
 scRu:
+  mov selectedLanguage,1
   lea rdx,languageKey
   lea r8,oneText
   jmp scSave
 scEn:
+  mov selectedLanguage,0
   lea rdx,languageKey
   lea r8,zeroText
   jmp scSave
@@ -373,6 +405,7 @@ scSave:
   lea r9,configPath
   call WritePrivateProfileStringW
 scDone:
+  call RefreshSettingsChecks
   add rsp,28h
   ret
 SettingsCommand ENDP

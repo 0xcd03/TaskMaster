@@ -276,48 +276,30 @@ btSomeMemory:
   lea rbx,treeLabels
   add rbx,rax
   mov [rdi+3744],rbx
-  mov ecx,[rdi+3704]
-  cmp ecx,24
-  jbe btIndent
-  mov ecx,24
-btIndent:
-  add ecx,ecx
-  xor eax,eax
-btSpaces:
-  cmp eax,ecx
-  jae btArrow
-  ; Registry-style hierarchy guide: each ancestor level gets a vertical
-  ; connector, followed by one cell of breathing room before the branch mark.
-  mov word ptr [rbx+rax*2],2502h ; BOX DRAWINGS LIGHT VERTICAL
-  inc eax
-  mov word ptr [rbx+rax*2],32
-  inc eax
-  jmp btSpaces
-btArrow:
-  lea rbx,[rbx+rax*2]
-  mov edx,32
-  cmp qword ptr [rdi+3696],0
-  je btArrowStore
-  mov edx,25BEh
-  test r15d,r15d
-  jz btArrowStore
-  mov edx,25B8h
+  ; Names remain plain UTF-16 for accessibility and searching. Disclosure
+  ; buttons, indentation and application icons are real drawing geometry.
+  mov [rdi+3716],r15d
   cmp word ptr [searchBuffer],0
-  jne btArrowStore
+  je btCollapsedVisual
+  mov dword ptr [rdi+3716],0 ; search reveals the matching descendant
+btCollapsedVisual:
+  cmp qword ptr [rdi+3696],0
+  je btCopyName
+  test r15d,r15d
+  jz btCopyName
+  cmp word ptr [searchBuffer],0
+  jne btCopyName
   mov r14d,[rdi+3704]
-btArrowStore:
-  mov [rbx],dx
-  mov word ptr [rbx+2],32
-  lea rcx,[rbx+4]
+btCopyName:
+  mov rcx,rbx
   mov rdx,rdi
-  mov r8d,180
+  mov r8d,220
   call lstrcpynW
   cmp qword ptr [rdi+3736],1
   jbe btNoCount
   mov rcx,rbx
-  add rcx,4
   call lstrlenW
-  lea rcx,[rbx+rax*2+4]
+  lea rcx,[rbx+rax*2]
   lea rdx,treeCountFmt
   mov r8,[rdi+3736]
   call wsprintfW

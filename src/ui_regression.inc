@@ -28,7 +28,7 @@ uiRegressionBytes dd 0
 uiRegressionModes dd 2,5,4,3,6,0
 uiRegressionColumns dd 7,5,3,4,7,7
 uiRegressionClass dw 'T','m','x','H','i','d','d','e','n','R','e','g','r','e','s','s','i','o','n',0
-uiRegressionResultFmt db 'UI regression: exit=%u, navigation=%u, WM_NULL=%u, maxNav=%I64u ms, maxNull=%I64u ms, delayedSnapshots=%u, themeAssertions=%u, acceptedDuringSettle=%u, nativeRows=%u',13,10,0
+uiRegressionResultFmt db 'UI regression: exit=%u, navigation=%u, WM_NULL=%u, maxNav=%I64u ms, maxNull=%I64u ms, delayedSnapshots=%u, themeAssertions=%u, controlAssertions=%u, acceptedDuringSettle=%u, nativeRows=%u',13,10,0
 uiRegressionFixtureName dw 'f','i','x','t','u','r','e','-','%','u','.','e','x','e',0
 .data?
 uiRegressionOutput db 256 dup(?)
@@ -472,6 +472,36 @@ urtNavControl:
   inc ecx
   cmp ecx,6
   jb urtNavControl
+  call UiControlsRegression
+  test eax,eax
+  jz urtControlsPassed
+  mov uiRegressionFailure,eax
+  jmp urtDestroy
+urtControlsPassed:
+  call MemoryAnimationTests
+  test eax,eax
+  jz urtAnimationPassed
+  mov uiRegressionFailure,eax
+  jmp urtDestroy
+urtAnimationPassed:
+  call UiTreeControlRegression
+  test eax,eax
+  jz urtTreePassed
+  mov uiRegressionFailure,eax
+  jmp urtDestroy
+urtTreePassed:
+  call MemoryPolicyTests
+  test eax,eax
+  jz urtPolicyPassed
+  mov uiRegressionFailure,eax
+  jmp urtDestroy
+urtPolicyPassed:
+  call UiReportLayoutTests
+  test eax,eax
+  jz urtReportPassed
+  mov uiRegressionFailure,eax
+  jmp urtDestroy
+urtReportPassed:
   call UiThemeRegression
   test eax,eax
   jz urtThemePassed
@@ -560,17 +590,19 @@ urtReport:
   mov [rsp+38h],rax
   mov eax,uiThemeAssertions
   mov [rsp+40h],rax
-  mov eax,uiRegressionSettledCount
+  mov eax,uiControlsAssertions
   mov [rsp+48h],rax
-  mov eax,uiRegressionNativeRows
+  mov eax,uiRegressionSettledCount
   mov [rsp+50h],rax
+  mov eax,uiRegressionNativeRows
+  mov [rsp+58h],rax
   call wsprintfA
-  mov [rsp+58h],eax
+  mov [rsp+60h],eax
   mov ecx,-11
   call GetStdHandle
   mov rcx,rax
   lea rdx,uiRegressionOutput
-  mov r8d,[rsp+58h]
+  mov r8d,[rsp+60h]
   lea r9,uiRegressionBytes
   mov qword ptr [rsp+20h],0
   call WriteFile
@@ -578,3 +610,8 @@ urtReport:
   call ExitProcess
 UiRegressionTest ENDP
 include ui_theme_regression.inc
+include ui_controls_regression.inc
+
+include report_layout_tests.inc
+
+include memory_animation_tests.inc
