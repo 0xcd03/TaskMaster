@@ -449,6 +449,8 @@ displayNormalNotify:
   jae moveDone
   lea rdx,rowMap
   mov rax,[rdx+rax*8]
+  test rax,rax
+  jz moveDone
   cmp frontMode,5
   jne displayStateDone
   mov edx,[rax+3616]
@@ -464,7 +466,7 @@ displayStateDone:
   mov [r9+60],edx
   mov [rsp+40h],r9
   mov edx,dword ptr [r9+32]
-  mov rcx,gList
+  mov rcx,rax
   call ProcessDisplayText
   mov r9,[rsp+40h]
   mov qword ptr [r9+48],rax

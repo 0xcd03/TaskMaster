@@ -15,3 +15,5 @@ TaskMaster v0.2.0
 - Extended isolated tests for 5000 rows, navigation latency, color paths and memory trim.
 
 Network per process remains unavailable. I/O is not physical disk throughput. Working-set trim is not forced memory compression. Binaries remain unsigned.
+
+- Fixed the v0.2.1 startup crash in LVN_GETDISPINFO; added registry-style tree guides and branch glyphs.

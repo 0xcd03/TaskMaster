@@ -241,6 +241,7 @@ lcSkipBanner:
   call MoveWindow
   mov eax,gRect.rcBottom
   sub eax,uiChartBottom
+  sub eax,uiStatusHeight
   cmp eax,uiChartMinTop
   jge lcChart
   mov eax,uiChartMinTop

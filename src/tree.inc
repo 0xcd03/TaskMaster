@@ -286,6 +286,10 @@ btIndent:
 btSpaces:
   cmp eax,ecx
   jae btArrow
+  ; Registry-style hierarchy guide: each ancestor level gets a vertical
+  ; connector, followed by one cell of breathing room before the branch mark.
+  mov word ptr [rbx+rax*2],2502h ; BOX DRAWINGS LIGHT VERTICAL
+  inc eax
   mov word ptr [rbx+rax*2],32
   inc eax
   jmp btSpaces

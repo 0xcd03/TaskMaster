@@ -1,14 +1,14 @@
 TaskManagerX64 verification (Windows 11 x64, 2026-11-10)
 
 PE checks
-- TaskManagerX64.exe: AMD64 PE32+ GUI, explicit SimpleEntry, 159744 bytes, SHA256 A39D1B27D590B17A64C0F09A969585FA2F00DCCA59B96C31EF70CCCC2F397A2D
-- TaskManagerX64-standard.exe: AMD64 PE32+ GUI, explicit SimpleEntry, 159744 bytes, SHA256 E36F291A36192E0BBBB8D3DD28CA47820B1E673393279131D1FE71FCF1EB2F45
+- $17804159D1079B10FEA1861B9BFD57C54076B613AF13A0075A929BE2091EE895F
+- $151D6A4CCAB03420E2571D65C27071FAE6AA32464010EFF0F68CEEACDCC014BA7
 - ASLR, high entropy VA and NX flags: PASS
 - Authenticode: unsigned (no code-signing certificate was available)
 
 Hidden UI regression
 - navigation=24, WM_NULL probes=324, max navigation=63 ms, maximum WM_NULL=16 ms
-- delayedSnapshots=13, themeAssertions=9, acceptedDuringSettle=7, nativeRows=5000
+- delayedSnapshots=13, themeAssertions=9, acceptedDuringSettle=7, nativeRows=5000, tree guides and branch glyphs: PASS
 - header/background theme path, panel layout and native controls: PASS
 
 Native model and action tests
@@ -18,8 +18,8 @@ Native model and action tests
 - registry/Startup-folder round trips and Task Scheduler enumeration: PASS
 - independent Task Scheduler disable/enable COM round trip: PASS
 
-UI revision
-- trailing table/header strip removed by themed header painting and edge layout
+Crash fix and UI revision
+- v0.2.1 startup crash fixed: LVN_GETDISPINFO now passes the row model pointer and rejects null mappings`r`n- trailing table/header strip removed by themed header painting and edge layout
 - process, service and startup row context actions added
 - startup enabled state is represented by native checkboxes and validated identity/hash actions
 - settings menu marks active language, theme, refresh interval and tree mode
@@ -29,3 +29,6 @@ Scope notes
 - Working-set trim is real EmptyWorkingSet processing with guarded targets; it is not forced Windows memory compression.
 - Per-process network attribution is shown as unavailable until a supported attribution collector is present.
 - The final interactive desktop visual pass was stopped with Escape; hidden/offscreen color and geometry checks passed.
+
+
+

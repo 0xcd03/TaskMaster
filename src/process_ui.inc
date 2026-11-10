@@ -409,6 +409,8 @@ FormatTreeProcessUi ENDP
 ; RCX row, EDX visible process column -> RAX stable text.
 ProcessDisplayText PROC
   sub rsp,28h
+  test rcx,rcx
+  jz pdtUnavailable
   mov rax,rcx
   test edx,edx
   jz pdtName
