@@ -2,6 +2,7 @@
 ; oleacc.h, retaining RU/EN names for accessibility and action reports.
 extern GetMenuItemCount:proc, GetMenuItemInfoW:proc, SetMenuItemInfoW:proc
 extern GetSubMenu:proc, SetMenuInfo:proc, DrawMenuBar:proc
+extern CheckMenuItem:proc
 extern GetDC:proc, ReleaseDC:proc, GetTextExtentPoint32W:proc
 .data
 menuThemeBrush dq 0
@@ -164,9 +165,86 @@ tmtDone:
   ret
 ThemeMenuTree ENDP
 
+RefreshSettingsChecks PROC
+  push rbx
+  sub rsp,20h
+  mov rcx,mainMenu
+  mov edx,4
+  call GetSubMenu
+  mov rbx,rax
+  test rax,rax
+  jz rscDone
+  ; MF_BYCOMMAND | MF_CHECKED (or MF_UNCHECKED).
+  mov rcx,rbx
+  mov edx,2300
+  xor r8d,r8d
+  cmp appLanguage,1
+  jne rscRu
+  mov r8d,8
+rscRu:
+  call CheckMenuItem
+  mov rcx,rbx
+  mov edx,2301
+  xor r8d,r8d
+  cmp appLanguage,0
+  jne rscEn
+  mov r8d,8
+rscEn:
+  call CheckMenuItem
+  mov rcx,rbx
+  mov edx,2302
+  xor r8d,r8d
+  cmp themeOption,0
+  jne rscLight
+  mov r8d,8
+rscLight:
+  call CheckMenuItem
+  mov rcx,rbx
+  mov edx,2303
+  xor r8d,r8d
+  cmp themeOption,1
+  jne rscDark
+  mov r8d,8
+rscDark:
+  call CheckMenuItem
+  mov rcx,rbx
+  mov edx,2305
+  xor r8d,r8d
+  cmp refreshInterval,1000
+  jne rscFast
+  mov r8d,8
+rscFast:
+  call CheckMenuItem
+  mov rcx,rbx
+  mov edx,2306
+  xor r8d,r8d
+  cmp refreshInterval,3000
+  jne rscSlow
+  mov r8d,8
+rscSlow:
+  call CheckMenuItem
+  mov rcx,rbx
+  mov edx,2310
+  xor r8d,r8d
+  cmp treeEnabled,0
+  je rscTree
+  mov r8d,8
+rscTree:
+  call CheckMenuItem
+rscDone:
+  add rsp,20h
+  pop rbx
+  ret
+RefreshSettingsChecks ENDP
+
+
 ApplyMenuTheme PROC
   sub rsp,28h
   call ApplyMenuBrushes
+  cmp uiRegressionMode,0
+  jne amtSkipChecks
+  call RefreshSettingsChecks
+amtSkipChecks:
   cmp menuOwnerReady,0
   jne amtPaint
   mov menuOwnerCount,0

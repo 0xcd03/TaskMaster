@@ -201,6 +201,21 @@ phcdText:
   mov eax,4 ; CDRF_SKIPDEFAULT
   jmp phcdReturn
 phcdNotify:
+  mov rsi,[rbx+32]
+  mov rcx,rsi
+  mov edx,202020h
+  cmp themeOption,0
+  jne phcdFill
+  mov edx,0F7F7F7h
+phcdFill:
+  call SetDCBrushColor
+  mov ecx,18
+  call GetStockObject
+  mov rdi,rax
+  mov rcx,rsi
+  lea rdx,[rbx+40]
+  mov r8,rdi
+  call FillRect
   mov eax,20h
   jmp phcdReturn
 phcdDefault:

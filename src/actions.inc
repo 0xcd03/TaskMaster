@@ -250,6 +250,11 @@ qaSingleTarget:
   cmp ebx,2010
   je qaThreads
 qaConfirm:
+  ; The global memory card is an explicit user action. Queue it directly so
+  ; the result is shown in the themed in-app report panel instead of a scary
+  ; system modal dialog.
+  cmp ebx,2005
+  je qaQueue
   cmp ebx,2200
   jae qaServiceConfirm
   cmp ebx,2005

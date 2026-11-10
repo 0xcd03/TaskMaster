@@ -1,7 +1,7 @@
 extern GetDpiForSystem:proc, GetDpiForWindow:proc, SetWindowPos:proc, DeleteObject:proc
 .data
 uiDpi dd 96
-uiBase dd 12,16,32,42,46,60,76,196,224,240,294,300,310,132,1050,700,56,24,30,18,80
+uiBase dd 12,16,32,42,46,60,76,196,224,240,294,300,310,132,1050,700,56,24,30,18,80,44
 uiInset dd 12
 uiFontHeight dd 16
 uiSearchHeight dd 28
@@ -23,6 +23,7 @@ uiGraphTop dd 24
 uiGraphHeight dd 30
 uiGraphLabel dd 18
 uiMinListHeight dd 80
+uiStatusHeight dd 44
 .code
 RecalcUiScale PROC
   xor r9d,r9d
@@ -37,7 +38,7 @@ rusNext:
   div r8d
   mov [r11+r9*4],eax
   inc r9d
-  cmp r9d,21
+  cmp r9d,22
   jb rusNext
   ret
 RecalcUiScale ENDP

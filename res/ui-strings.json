@@ -478,5 +478,9 @@
   "shellMemoryNote": [
     "Trims resident working sets.",
     "Сокращение рабочих наборов."
+  ],
+  "detailsButton": [
+    "Details",
+    "Подробнее"
   ]
 }

@@ -51,6 +51,8 @@ extern SetWindowTextW:proc
 extern GetDlgCtrlID:proc
 extern GetWindowTextW:proc
 extern SetTextColor:proc, SetBkColor:proc
+extern CreatePopupMenu:proc, AppendMenuW:proc, TrackPopupMenu:proc, DestroyMenu:proc
+extern GetCursorPos:proc, CheckMenuItem:proc
 
 
 ; constants
@@ -60,6 +62,8 @@ WM_SIZE equ 5h
 WM_COMMAND equ 111h
 WM_TIMER equ 113h
 WM_NOTIFY equ 4Eh
+WM_CONTEXTMENU equ 7Bh
+WM_CTLCOLORSTATIC equ 138h
 WS_OVERLAPPEDWINDOW equ 00CF0000h
 WS_VISIBLE equ 10000000h
 WS_CHILD equ 40000000h
@@ -100,6 +104,7 @@ ID_KILL equ 2001
 ID_PAUSE equ 2002
 ID_RESUME equ 2003
 ID_TRIM equ 2004
+ID_BANNER_DETAILS equ 2600
 TIMER_REFRESH equ 77h
 
 PROCESSENTRY32W struct
@@ -213,6 +218,11 @@ szFmtPid db '%u',0
 szFmtMem db '%I64u',0
 szFmtThreads db '%u',0
 szFmtStatus db '%s',0
+szDetails dw 'D','e','t','a','i','l','s',0
+szStart dw 'S','t','a','r','t',0
+szStop dw 'S','t','o','p',0
+szDisable dw 'D','i','s','a','b','l','e',0
+szEnable dw 'E','n','a','b','l','e',0
 gInst dq ?
 gMain dq ?
 gList dq ?
@@ -223,6 +233,9 @@ gMem PROCESS_MEMORY_COUNTERS_EX <>
 gBuf db 128 dup(?)
 gMsg MSG <>
 gRect RECT <>
+fitRect RECT <>
+actionBanner dq ?
+actionBannerDetails dq ?
 gClass WNDCLASSEXW <>
 
 .code
@@ -240,8 +253,12 @@ SimpleWndProc PROC
   je snapshotReady
   cmp edx,WM_NOTIFY
   je displayNotify
+  cmp edx,WM_CONTEXTMENU
+  je contextMenu
   cmp edx,133h ; WM_CTLCOLOREDIT: native search follows the application theme
   je colorSearch
+  cmp edx,WM_CTLCOLORSTATIC
+  je colorStatic
   cmp edx,WM_COMMAND
   je menuCommand
   cmp edx,8002h
@@ -302,6 +319,16 @@ colorSearch:
   mov edx,2E2E2Eh
 csBackground:
   call SetBkColor
+  mov rax,shellCardBrush
+  add rsp,68h
+  ret
+colorStatic:
+  mov rcx,r8
+  mov edx,shellTextColor
+  call SetTextColor
+  mov rcx,r8
+  mov edx,1
+  call SetBkMode
   mov rax,shellCardBrush
   add rsp,68h
   ret
@@ -390,22 +417,62 @@ notTreeDouble:
   cmp dword ptr [r9+16],-108
   je columnClicked
   cmp dword ptr [r9+16],-177
+  je displayNormalNotify
+  cmp dword ptr [r9+16],-101
+  je startupCheckNotify
   jne moveDone
+startupCheckNotify:
+  cmp frontMode,5
+  jne moveDone
+  cmp actionBusy,0
+  jne moveDone
+  mov eax,[r9+40] ; LVN_ITEMCHANGED.uChanged
+  test eax,8 ; LVIF_STATE
+  jz moveDone
+  mov eax,[r9+32] ; LVN_ITEMCHANGED.uNewState
+  shr eax,12
+  and eax,3
+  cmp eax,1
+  je startupEnableClick
+  cmp eax,2
+  jne moveDone
+  mov ecx,2400
+  call QueueAction
+  jmp moveDone
+startupEnableClick:
+  mov ecx,2401
+  call QueueAction
+  jmp moveDone
+displayNormalNotify:
   mov eax,dword ptr [r9+28]
   cmp eax,visibleCount
   jae moveDone
   lea rdx,rowMap
   mov rax,[rdx+rax*8]
+  cmp frontMode,5
+  jne displayStateDone
+  mov edx,[rax+3616]
+  xor edx,1
+  inc edx
+  shl edx,12
+  mov [r9+36],edx
+  mov dword ptr [r9+40],0F000h
+displayStateDone:
   cmp frontMode,0
   jne displayNormal
   mov edx,[rax+3880]
   mov [r9+60],edx
   mov [rsp+40h],r9
   mov edx,dword ptr [r9+32]
-  mov rcx,rax
+  mov rcx,gList
   call ProcessDisplayText
   mov r9,[rsp+40h]
   mov qword ptr [r9+48],rax
+  jmp moveDone
+contextMenu:
+  cmp r8,gList
+  jne moveDone
+  call ShowListContextMenu
   jmp moveDone
 listCustomDraw:
   call ProcessListCustomDraw
@@ -431,6 +498,13 @@ menuCommand:
 menuNormalRoute:
   mov ecx,r8d
   and ecx,0FFFFh
+  cmp ecx,ID_BANNER_DETAILS
+  jne menuNormalRouteAction
+  mov rcx,actionBanner
+  lea rdx,actionMessage
+  call SetWindowTextW
+  jmp moveDone
+menuNormalRouteAction:
   cmp ecx,2300
   jb menuAction
   call SettingsCommand
@@ -454,11 +528,16 @@ doSortColumn:
   call BuildRowMap
   jmp moveDone
 actionComplete:
-  mov rcx,gMain
+  mov rcx,actionBanner
   lea rdx,actionMessage
-  lea r8,szTitle
-  mov r9d,40h
-  call MessageBoxW
+  call SetWindowTextW
+  mov rcx,actionBanner
+  xor edx,edx
+  call ShowWindow
+  mov rcx,actionBannerDetails
+  mov edx,5
+  call ShowWindow
+  call LayoutContent
   mov actionBusy,0
   jmp moveDone
 SimpleWndProc ENDP
@@ -629,6 +708,152 @@ gcFormat:
   ret
 GuiColumn ENDP
 
+; Extend the final column to the current client width. This removes the
+; default white header/client strip that otherwise appears after short tables.
+FitLastColumn PROC
+  push rbx
+  sub rsp,20h
+  cmp frontMode,0
+  je flcProcess
+  cmp frontMode,1
+  je flcThread
+  cmp frontMode,5
+  je flcStartup
+  cmp frontMode,6
+  je flcHistory
+  cmp frontMode,2
+  je flcServices
+  cmp frontMode,3
+  je flcUsers
+  mov ebx,2
+  jmp flcHaveLast
+flcProcess:
+  mov ebx,6
+  jmp flcHaveLast
+flcThread:
+  mov ebx,6
+  jmp flcHaveLast
+flcStartup:
+  mov ebx,4
+  jmp flcHaveLast
+flcHistory:
+  mov ebx,6
+  jmp flcHaveLast
+flcServices:
+  mov ebx,6
+  jmp flcHaveLast
+flcUsers:
+  mov ebx,3
+flcHaveLast:
+flcMeasure:
+  mov eax,gRect.rcRight
+  sub eax,uiContentLeft
+  sub eax,24
+  cmp eax,48
+  jge flcSet
+  mov eax,48
+flcSet:
+  mov rcx,gList
+  mov edx,101Eh
+  mov r8d,ebx
+  mov r9d,eax
+  call SendMessageW
+  add rsp,28h
+  pop rbx
+  ret
+FitLastColumn ENDP
+
+; Context menu exposes the same actions as the command/status actions and keeps
+; the selected row as the single source of target identity.
+ShowListContextMenu PROC
+  push rbx
+  sub rsp,50h
+  call CreatePopupMenu
+  mov rbx,rax
+  test rax,rax
+  jz slcmDone
+  cmp frontMode,0
+  je slcmProcess
+  cmp frontMode,2
+  je slcmService
+  cmp frontMode,5
+  je slcmStartup
+  jmp slcmDestroy
+slcmProcess:
+  mov rcx,rbx
+  xor edx,edx
+  mov r8d,2001
+  lea r9,szKill
+  call AppendMenuW
+  mov rcx,rbx
+  xor edx,edx
+  mov r8d,2002
+  lea r9,szPause
+  call AppendMenuW
+  mov rcx,rbx
+  xor edx,edx
+  mov r8d,2003
+  lea r9,szResume
+  call AppendMenuW
+  mov rcx,rbx
+  xor edx,edx
+  mov r8d,2004
+  lea r9,szTrim
+  call AppendMenuW
+  mov rcx,rbx
+  xor edx,edx
+  mov r8d,2010
+  lea r9,threadCaption
+  call AppendMenuW
+  jmp slcmTrack
+slcmService:
+  mov rcx,rbx
+  xor edx,edx
+  mov r8d,2200
+  lea r9,szStart
+  call AppendMenuW
+  mov rcx,rbx
+  xor edx,edx
+  mov r8d,2201
+  lea r9,szStop
+  call AppendMenuW
+  jmp slcmTrack
+slcmStartup:
+  mov rcx,rbx
+  xor edx,edx
+  mov r8d,2400
+  lea r9,szDisable
+  call AppendMenuW
+  mov rcx,rbx
+  xor edx,edx
+  mov r8d,2401
+  lea r9,szEnable
+  call AppendMenuW
+slcmTrack:
+  lea rcx,[rsp+20h]
+  call GetCursorPos
+  mov rcx,rbx
+  mov edx,2
+  mov r8d,[rsp+20h]
+  mov r9d,[rsp+24h]
+  mov qword ptr [rsp+28h],0
+  mov rax,gMain
+  mov [rsp+28h],rax
+  mov qword ptr [rsp+30h],0
+  call TrackPopupMenu
+  test eax,eax
+  jz slcmDestroy
+  mov ecx,eax
+  call QueueAction
+slcmDestroy:
+  mov rcx,rbx
+  call DestroyMenu
+slcmDone:
+  add rsp,50h
+  pop rbx
+  ret
+ShowListContextMenu ENDP
+
 InitGui PROC
   sub rsp,68h
   xor ecx,ecx
@@ -654,6 +879,13 @@ InitGui PROC
   call SendMessageW
   call InitProcessImages
   call InitProcessListStyle
+  ; LVS_EX_CHECKBOXES is used by the Startup panel; state images are supplied
+  ; lazily in LVN_GETDISPINFO for the virtual rows.
+  mov rcx,gList
+  mov edx,LVM_SETEXTENDEDLISTVIEWSTYLE
+  mov r8d,4000h
+  mov r9d,4000h
+  call SendMessageW
   xor ecx,ecx
   lea rdx,szProcess
   mov r8d,340
@@ -682,6 +914,57 @@ InitGui PROC
   lea rdx,cpuCaption
   mov r8d,90
   call GuiColumn
+  xor ecx,ecx
+  lea rdx,szStatic
+  xor r8d,r8d
+  mov r9d,50000000h
+  mov eax,uiContentLeft
+  mov [rsp+20h],rax
+  mov qword ptr [rsp+28h],0
+  mov qword ptr [rsp+30h],520
+  mov qword ptr [rsp+38h],40
+  mov rax,gMain
+  mov [rsp+40h],rax
+  mov qword ptr [rsp+48h],ID_BANNER_DETAILS
+  mov rax,gInst
+  mov [rsp+50h],rax
+  mov qword ptr [rsp+58h],0
+  call CreateWindowExW
+  mov actionBanner,rax
+  mov rcx,rax
+  mov edx,30h
+  mov r8,appFont
+  mov r9d,1
+  call SendMessageW
+  mov rcx,actionBanner
+  xor edx,edx
+  call ShowWindow
+  mov ecx,0
+  lea rdx,szButton
+  lea r8,detailsButton
+  mov r9d,50010000h
+  mov eax,uiContentLeft
+  add eax,530
+  mov [rsp+20h],rax
+  mov eax,gRect.rcBottom
+  sub eax,uiStatusHeight
+  mov [rsp+28h],rax
+  mov qword ptr [rsp+30h],90
+  mov eax,uiStatusHeight
+  mov [rsp+38h],rax
+  mov rax,gMain
+  mov [rsp+40h],rax
+  mov qword ptr [rsp+48h],ID_BANNER_DETAILS
+  mov rax,gInst
+  mov [rsp+50h],rax
+  mov qword ptr [rsp+58h],0
+  call CreateWindowExW
+  mov actionBannerDetails,rax
+  mov rcx,rax
+  mov edx,30h
+  mov r8,appFont
+  mov r9d,1
+  call SendMessageW
   call StartCollector
   add rsp,68h
   ret

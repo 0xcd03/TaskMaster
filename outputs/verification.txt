@@ -1,16 +1,15 @@
-TaskManagerX64 verification (Windows 11 x64, 2026-11-09)
+TaskManagerX64 verification (Windows 11 x64, 2026-11-10)
 
 PE checks
-- TaskManagerX64.exe: AMD64 PE32+ GUI, SimpleEntry RVA 0x13A8, 157696 bytes
-- TaskManagerX64-standard.exe: AMD64 PE32+ GUI, SimpleEntry RVA 0x13A8, 157696 bytes
+- TaskManagerX64.exe: AMD64 PE32+ GUI, explicit SimpleEntry, 159744 bytes, SHA256 A39D1B27D590B17A64C0F09A969585FA2F00DCCA59B96C31EF70CCCC2F397A2D
+- TaskManagerX64-standard.exe: AMD64 PE32+ GUI, explicit SimpleEntry, 159744 bytes, SHA256 E36F291A36192E0BBBB8D3DD28CA47820B1E673393279131D1FE71FCF1EB2F45
 - ASLR, high entropy VA and NX flags: PASS
 - Authenticode: unsigned (no code-signing certificate was available)
 
 Hidden UI regression
-- navigation=24, max navigation command=16 ms
-- WM_NULL response probes=324, maximum=16 ms
-- delayedSnapshots=12, themeAssertions=9
-- acceptedDuringSettle=6, nativeRows=5000
+- navigation=24, WM_NULL probes=324, max navigation=63 ms, maximum WM_NULL=16 ms
+- delayedSnapshots=13, themeAssertions=9, acceptedDuringSettle=7, nativeRows=5000
+- header/background theme path, panel layout and native controls: PASS
 
 Native model and action tests
 - stale PID identity, pause/resume, working-set trim, priority and terminate: PASS
@@ -18,6 +17,13 @@ Native model and action tests
 - persistent history and checksum corruption handling: PASS
 - registry/Startup-folder round trips and Task Scheduler enumeration: PASS
 - independent Task Scheduler disable/enable COM round trip: PASS
+
+UI revision
+- trailing table/header strip removed by themed header painting and edge layout
+- process, service and startup row context actions added
+- startup enabled state is represented by native checkboxes and validated identity/hash actions
+- settings menu marks active language, theme, refresh interval and tree mode
+- memory optimization result is shown in the themed in-app panel with Details
 
 Scope notes
 - Working-set trim is real EmptyWorkingSet processing with guarded targets; it is not forced Windows memory compression.

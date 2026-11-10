@@ -193,6 +193,7 @@ lcWidth:
   mov [rsp+30h],eax
   mov eax,gRect.rcBottom
   sub eax,uiBottomSpace
+  sub eax,uiStatusHeight
   cmp frontMode,4
   jne lcList
   sub eax,uiChartSpace
@@ -207,6 +208,36 @@ lcHeight:
   mov edx,uiContentLeft
   mov r8d,uiListTop
   mov r9d,[rsp+30h]
+  call MoveWindow
+  ; The final column is fitted after the selected panel has finished
+  ; rebuilding its columns. WM_SIZE may arrive reentrantly during creation.
+lcSkipFit:
+  ; The result panel occupies the bottom strip and uses the same themed
+  ; background as the rest of the application.
+  cmp uiRegressionMode,0
+  jne lcSkipBanner
+  mov rcx,actionBanner
+  mov edx,uiContentLeft
+  mov eax,gRect.rcBottom
+  sub eax,uiStatusHeight
+  mov r8d,eax
+  mov r9d,gRect.rcRight
+  sub r9d,uiContentSpace
+  mov eax,uiStatusHeight
+  mov [rsp+20h],rax
+  mov qword ptr [rsp+28h],1
+  call MoveWindow
+lcSkipBanner:
+  mov rcx,actionBannerDetails
+  mov edx,uiContentLeft
+  add edx,530
+  mov eax,gRect.rcBottom
+  sub eax,uiStatusHeight
+  mov r8d,eax
+  mov r9d,90
+  mov eax,uiStatusHeight
+  mov [rsp+20h],rax
+  mov qword ptr [rsp+28h],1
   call MoveWindow
   mov eax,gRect.rcBottom
   sub eax,uiChartBottom
