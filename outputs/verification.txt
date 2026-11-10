@@ -8,7 +8,7 @@ PE checks
 
 Hidden UI regression
 - navigation=24, WM_NULL probes=324, max navigation=63 ms, maximum WM_NULL=16 ms
-- delayedSnapshots=13, themeAssertions=9, acceptedDuringSettle=7, nativeRows=5000, tree guides and branch glyphs: PASS
+- delayedSnapshots=13, themeAssertions=9, acceptedDuringSettle=7, nativeRows=5000, tree guides and branch glyphs: PASS, header remainder repaint and themed client erase: PASS
 - header/background theme path, panel layout and native controls: PASS
 
 Native model and action tests
@@ -29,6 +29,7 @@ Scope notes
 - Working-set trim is real EmptyWorkingSet processing with guarded targets; it is not forced Windows memory compression.
 - Per-process network attribution is shown as unavailable until a supported attribution collector is present.
 - The final interactive desktop visual pass was stopped with Escape; hidden/offscreen color and geometry checks passed.
+
 
 
 

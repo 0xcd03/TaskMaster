@@ -17,3 +17,5 @@ TaskMaster v0.2.0
 Network per process remains unavailable. I/O is not physical disk throughput. Working-set trim is not forced memory compression. Binaries remain unsigned.
 
 - Fixed the v0.2.1 startup crash in LVN_GETDISPINFO; added registry-style tree guides and branch glyphs.
+
+- Header remainder and menu separator now use the active theme; Details opens the full in-app report; title includes v0.2.3; process tree rows use registry-style hierarchy guides.

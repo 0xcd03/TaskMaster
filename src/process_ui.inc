@@ -5,6 +5,7 @@ extern SHGetFileInfoW:proc, GetModuleFileNameW:proc, QueryFullProcessImageNameW:
 extern CreateThread:proc, CreateEventW:proc, WaitForSingleObject:proc, SetEvent:proc
 extern SetWindowSubclass:proc, DefSubclassProc:proc, SetDCBrushColor:proc
 extern SetTextColor:proc, SetBkMode:proc, SelectObject:proc, FrameRect:proc
+extern GetClientRect:proc, GetDC:proc, ReleaseDC:proc, FillRect:proc
 .data
 processImageList dq 0
 processHeader dq 0
@@ -33,6 +34,8 @@ processPausedPids dd 16384 dup(?)
 processPausedBirth dq 16384 dup(?)
 processDisplayBuffer dw 32 dup(?)
 processHeaderText dw 512 dup(?)
+headerClientRect RECT <>
+headerLastRect RECT <>
 .code
 InitProcessImages PROC
   sub rsp,38h
@@ -72,6 +75,11 @@ InitProcessListStyle PROC
   mov r8d,1
   xor r9d,r9d
   call SetWindowSubclass
+  mov rcx,processHeader
+  lea rdx,ProcessHeaderSubclass
+  mov r8d,3
+  xor r9d,r9d
+  call SetWindowSubclass
   call InitScrollTheme
   add rsp,28h
   ret
@@ -94,6 +102,67 @@ plsDefault:
   add rsp,28h
   ret
 ProcessListSubclass ENDP
+
+; Native header leaves the area after the last column in the system window
+; background. Repaint that remainder after native WM_PAINT so it cannot become
+; a white strip while retaining native header hit testing and sorting.
+ProcessHeaderSubclass PROC
+  sub rsp,38h
+  cmp edx,0Fh ; WM_PAINT
+  jne phsDefault
+  call DefSubclassProc
+  mov [rsp+20h],rax
+  mov rcx,processHeader
+  lea rdx,headerClientRect
+  call GetClientRect
+  mov rcx,processHeader
+  mov edx,1200h ; HDM_GETITEMCOUNT
+  xor r8d,r8d
+  xor r9d,r9d
+  call SendMessageW
+  test eax,eax
+  jz phsFill
+  dec eax
+  mov r8d,eax
+  mov rcx,processHeader
+  mov edx,1207h ; HDM_GETITEMRECT
+  lea r9,headerLastRect
+  call SendMessageW
+  test eax,eax
+  jz phsFill
+  mov eax,headerLastRect.rcRight
+  mov headerClientRect.rcLeft,eax
+phsFill:
+  mov rcx,processHeader
+  call GetDC
+  mov [rsp+28h],rax
+  test rax,rax
+  jz phsReturn
+  mov rcx,rax
+  mov edx,202020h
+  cmp themeOption,0
+  jne phsBrush
+  mov edx,0F7F7F7h
+phsBrush:
+  call SetDCBrushColor
+  mov ecx,18
+  call GetStockObject
+  mov r8,rax
+  mov rcx,[rsp+28h]
+  lea rdx,headerClientRect
+  call FillRect
+  mov rcx,processHeader
+  mov rdx,[rsp+28h]
+  call ReleaseDC
+phsReturn:
+  mov rax,[rsp+20h]
+  add rsp,38h
+  ret
+phsDefault:
+  call DefSubclassProc
+  add rsp,38h
+  ret
+ProcessHeaderSubclass ENDP
 
 ; Header labels remain native accessible HDITEM text; only painting is custom.
 ProcessHeaderCustomDraw PROC

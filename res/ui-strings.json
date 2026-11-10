@@ -1,7 +1,7 @@
 {
   "szTitle": [
-    "Task Manager x64",
-    "Диспетчер задач x64"
+    "Task Manager x64 v0.2.3",
+    "Диспетчер задач x64 v0.2.3"
   ],
   "szProcess": [
     "Process",
@@ -482,5 +482,9 @@
   "detailsButton": [
     "Details",
     "Подробнее"
+  ],
+  "actionDone": [
+    "Operation completed. Open Details for the full report.",
+    "Операция завершена. Откройте «Подробнее» для полного отчёта."
   ]
 }

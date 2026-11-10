@@ -64,6 +64,7 @@ WM_TIMER equ 113h
 WM_NOTIFY equ 4Eh
 WM_CONTEXTMENU equ 7Bh
 WM_CTLCOLORSTATIC equ 138h
+WM_ERASEBKGND equ 14h
 WS_OVERLAPPEDWINDOW equ 00CF0000h
 WS_VISIBLE equ 10000000h
 WS_CHILD equ 40000000h
@@ -236,6 +237,7 @@ gRect RECT <>
 fitRect RECT <>
 actionBanner dq ?
 actionBannerDetails dq ?
+actionDetailsText dq ?
 gClass WNDCLASSEXW <>
 
 .code
@@ -259,6 +261,8 @@ SimpleWndProc PROC
   je colorSearch
   cmp edx,WM_CTLCOLORSTATIC
   je colorStatic
+  cmp edx,WM_ERASEBKGND
+  je eraseBackground
   cmp edx,WM_COMMAND
   je menuCommand
   cmp edx,8002h
@@ -330,6 +334,17 @@ colorStatic:
   mov edx,1
   call SetBkMode
   mov rax,shellCardBrush
+  add rsp,68h
+  ret
+eraseBackground:
+  mov rcx,gMain
+  lea rdx,gRect
+  call GetClientRect
+  mov rcx,r8
+  lea rdx,gRect
+  mov r8,shellBrush
+  call FillRect
+  mov eax,1
   add rsp,68h
   ret
 minimumSize:
@@ -505,6 +520,12 @@ menuNormalRoute:
   mov rcx,actionBanner
   lea rdx,actionMessage
   call SetWindowTextW
+  mov rcx,actionDetailsText
+  mov edx,5
+  call ShowWindow
+  mov rcx,actionBannerDetails
+  xor edx,edx
+  call ShowWindow
   jmp moveDone
 menuNormalRouteAction:
   cmp ecx,2300
@@ -531,9 +552,15 @@ doSortColumn:
   jmp moveDone
 actionComplete:
   mov rcx,actionBanner
-  lea rdx,actionMessage
+  lea rdx,actionDone
   call SetWindowTextW
   mov rcx,actionBanner
+  mov edx,5
+  call ShowWindow
+  mov rcx,actionDetailsText
+  lea rdx,actionMessage
+  call SetWindowTextW
+  mov rcx,actionDetailsText
   xor edx,edx
   call ShowWindow
   mov rcx,actionBannerDetails
@@ -567,7 +594,10 @@ SimpleEntry PROC
   mov edx,IDC_ARROW
   call LoadCursorW
   mov gClass.wcCursor,rax
-  mov gClass.wcBrush,COLOR_WINDOW+1
+  ; Client erase is handled by SimpleWndProc with the active theme brush.
+  ; A COLOR_WINDOW class brush is white and causes a separator strip between
+  ; the native menu bar and the first child control.
+  mov gClass.wcBrush,0
   lea rax,szClass
   mov gClass.wcName,rax
   lea rcx,gClass
@@ -967,6 +997,38 @@ InitGui PROC
   mov r8,appFont
   mov r9d,1
   call SendMessageW
+  mov rcx,actionBannerDetails
+  xor edx,edx
+  call ShowWindow
+  ; Detailed report is created below and remains hidden until the action ends.
+  xor ecx,ecx
+  lea rdx,szStatic
+  xor r8d,r8d
+  mov r9d,50000000h
+  mov eax,uiContentLeft
+  mov [rsp+20h],rax
+  mov eax,gRect.rcBottom
+  sub eax,uiStatusHeight
+  mov [rsp+28h],rax
+  mov qword ptr [rsp+30h],620
+  mov eax,uiStatusHeight
+  mov [rsp+38h],rax
+  mov rax,gMain
+  mov [rsp+40h],rax
+  mov qword ptr [rsp+48h],2601
+  mov rax,gInst
+  mov [rsp+50h],rax
+  mov qword ptr [rsp+58h],0
+  call CreateWindowExW
+  mov actionDetailsText,rax
+  mov rcx,rax
+  mov edx,30h
+  mov r8,appFont
+  mov r9d,1
+  call SendMessageW
+  mov rcx,actionDetailsText
+  xor edx,edx
+  call ShowWindow
   call StartCollector
   add rsp,68h
   ret

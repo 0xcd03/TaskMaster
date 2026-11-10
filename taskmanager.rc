@@ -147,8 +147,8 @@ END
 
 STRINGTABLE
 BEGIN
- 1000 "Task Manager x64"
- 3000 "Диспетчер задач x64"
+ 1000 "Task Manager x64 v0.2.3"
+ 3000 "Диспетчер задач x64 v0.2.3"
  1001 "Process"
  3001 "Процесс"
  1002 "PID"
@@ -403,4 +403,6 @@ Skipped: %u."
  3119 "Сокращение рабочих наборов."
  1120 "Details"
  3120 "Подробнее"
+ 1121 "Operation completed. Open Details for the full report."
+ 3121 "Операция завершена. Откройте «Подробнее» для полного отчёта."
 END

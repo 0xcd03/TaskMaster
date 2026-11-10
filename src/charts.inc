@@ -228,6 +228,16 @@ lcSkipFit:
   mov qword ptr [rsp+28h],1
   call MoveWindow
 lcSkipBanner:
+  mov rcx,actionDetailsText
+  mov edx,uiContentLeft
+  mov eax,gRect.rcBottom
+  sub eax,uiStatusHeight
+  mov r8d,eax
+  mov r9d,620
+  mov eax,uiStatusHeight
+  mov [rsp+20h],rax
+  mov qword ptr [rsp+28h],1
+  call MoveWindow
   mov rcx,actionBannerDetails
   mov edx,uiContentLeft
   add edx,530
