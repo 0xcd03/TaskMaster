@@ -38,6 +38,7 @@ presentationRows db 8208 dup(?)
 presentationDraw db 160 dup(?)
 presentationMinMax db 48 dup(?)
 presentationSaved db 80 dup(?)
+presentationSavedColumns dd (PC_COLUMN_COUNT+1) dup(?)
 presentationTreeRows db 28672 dup(?)
 .code
 ProcessPresentationTests PROC
@@ -46,6 +47,18 @@ ProcessPresentationTests PROC
   push rdi
   sub rsp,30h
   lea rsi,presentationSaved
+  ; Direct renderer fixtures have no native ListView; preserve its mapping.
+  lea r10,presentationSavedColumns
+  mov eax,pcVisibleCount
+  mov [r10],eax
+  lea r11,pcVisibleIds
+  xor edx,edx
+pptSaveColumns:
+  mov eax,[r11+rdx*4]
+  mov [r10+rdx*4+4],eax
+  inc edx
+  cmp edx,PC_COLUMN_COUNT
+  jb pptSaveColumns
   mov eax,appLanguage
   mov [rsi],eax
   mov eax,treeEnabled
@@ -172,6 +185,10 @@ ProcessPresentationTests PROC
   cmp rax,rdx
   jne pptFail
   mov modelStage,1402
+  ; Both crafted rows represent known metrics in these numeric-order checks.
+  mov dword ptr [rbx+4096+3656],1
+  mov dword ptr [rbx+4096+3672],1
+  mov dword ptr [rbx+4096+3896],1
   mov word ptr [rbx+1536],'2'
   mov word ptr [rbx+1538],0
   mov dword ptr [rbx+4096+1536],00300031h ; "10"
@@ -264,6 +281,14 @@ ProcessPresentationTests PROC
   cmp dword ptr [rbx+3896],0
   jne pptFail
   mov modelStage,1404
+  mov pcVisibleCount,7
+  lea r10,pcVisibleIds
+  xor eax,eax
+pptFixtureColumns:
+  mov [r10+rax*4],eax
+  inc eax
+  cmp eax,7
+  jb pptFixtureColumns
   ; Synthetic x64 NMLVCUSTOMDRAW with canaries in the HDC, RECT and LPARAM.
   ; A 32-bit layout accidentally used here corrupts one of these fields.
   lea rdi,presentationDraw
@@ -541,6 +566,17 @@ ProcessPresentationTests PROC
 pptFail:
   mov edi,1
 pptRestore:
+  lea r10,presentationSavedColumns
+  mov eax,[r10]
+  mov pcVisibleCount,eax
+  lea r11,pcVisibleIds
+  xor edx,edx
+pptRestoreColumns:
+  mov eax,[r10+rdx*4+4]
+  mov [r11+rdx*4],eax
+  inc edx
+  cmp edx,PC_COLUMN_COUNT
+  jb pptRestoreColumns
   mov eax,[rsi]
   mov appLanguage,eax
   mov eax,[rsi+4]

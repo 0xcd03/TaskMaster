@@ -22,6 +22,7 @@ threadName dq 0
 SetModeColumns PROC
   push rbx
   sub rsp,20h
+  call PcBeforeModeColumns
   ; Checkboxes belong only to Startup. Owner-data state images are supplied
   ; by LVN_GETDISPINFO; Windows must not cache them against unstable row indexes.
   mov rcx,gList
@@ -42,7 +43,19 @@ smcCheckStyle:
   mov r8d,0F000h ; LVIS_STATEIMAGEMASK
 smcCheckMask:
   call SendMessageW
-  mov ebx,7
+  mov rcx,gList
+  mov edx,101Fh
+  xor r8d,r8d
+  xor r9d,r9d
+  call SendMessageW
+  mov rcx,rax
+  mov edx,1200h
+  xor r8d,r8d
+  xor r9d,r9d
+  call SendMessageW
+  mov ebx,eax
+  test ebx,ebx
+  jz smcDeleted
 smcDelete:
   mov rcx,gList
   mov edx,101Ch
@@ -51,38 +64,12 @@ smcDelete:
   call SendMessageW
   dec ebx
   jnz smcDelete
+smcDeleted:
   cmp frontMode,2
   jae smcPanel
   cmp frontMode,0
   jne smcThread
-  xor ecx,ecx
-  lea rdx,szProcess
-  mov r8d,240
-  call GuiColumn
-  mov ecx,1
-  lea rdx,processStatusCaption
-  mov r8d,130
-  call GuiColumn
-  mov ecx,2
-  lea rdx,cpuCaption
-  mov r8d,76
-  call GuiColumn
-  mov ecx,3
-  lea rdx,processMemoryCaption
-  mov r8d,120
-  call GuiColumn
-  mov ecx,4
-  lea rdx,processDiskCaption
-  mov r8d,125
-  call GuiColumn
-  mov ecx,5
-  lea rdx,szThreads
-  mov r8d,90
-  call GuiColumn
-  mov ecx,6
-  lea rdx,szPid
-  mov r8d,68
-  call GuiColumn
+  call PcBuildProcessColumns
   jmp smcDone
 smcThread:
   xor ecx,ecx
@@ -118,6 +105,8 @@ smcCPU:
 smcPanel:
   call PanelColumns
 smcDone:
+  call PcAfterModeColumns
+  call PmUiDemand
   add rsp,20h
   pop rbx
   ret
@@ -127,13 +116,17 @@ CollectThreads PROC
   push rbx
   push rsi
   push rdi
-  sub rsp,30h
+  push r12
+  sub rsp,38h
+  xor r12d,r12d
   mov backCount,0
+  call BeginThreadMetrics
   mov ecx,1000h
   xor edx,edx
   mov r8d,collectInspectedPid
   call OpenProcess
   mov rsi,rax
+  mov r12,rax ; keep owner object/PID alive for the entire verified enumeration
   test rax,rax
   jz ctDone
   mov rcx,rax
@@ -144,8 +137,6 @@ CollectThreads PROC
   mov [rsp+20h],rax
   call GetProcessTimes
   mov ebx,eax
-  mov rcx,rsi
-  call CloseHandle
   test ebx,ebx
   jz ctDone
   mov rax,timeCreate
@@ -203,14 +194,25 @@ ctNext:
   lea rcx,[rdi+3072]
   lea rdx,unavailable
   call lstrcpyW
-  mov ecx,40h
+  mov ecx,800h ; THREAD_QUERY_LIMITED_INFORMATION
   xor edx,edx
   mov r8d,dword ptr [threadEntry+8]
   call OpenThread
+  test rax,rax
+  jnz ctThreadOpened
+  mov ecx,40h ; optional fallback for handles requiring QUERY_INFORMATION
+  xor edx,edx
+  mov r8d,dword ptr [threadEntry+8]
+  call OpenThread
+ctThreadOpened:
   mov rsi,rax
   test rax,rax
   jz ctRow
-  mov rcx,rax
+  mov rcx,rsi
+  call GetProcessIdOfThread
+  cmp eax,collectInspectedPid
+  jne ctHandleClose
+  mov rcx,rsi
   lea rdx,threadName
   call GetThreadDescription
   test eax,eax
@@ -239,6 +241,12 @@ ctTimes:
   jz ctHandleClose
   mov rax,timeCreate
   mov [rdi+3600],rax
+  call GetTickCount64
+  mov rdx,rax
+  mov rcx,rdi
+  mov r8,timeKernel
+  mov r9,timeUser
+  call RecordThreadCpu
   mov rax,timeKernel
   xor edx,edx
   mov ecx,10000
@@ -257,6 +265,11 @@ ctHandleClose:
   mov rcx,rsi
   call CloseHandle
 ctRow:
+  cmp qword ptr [rdi+3600],0
+  jne ctRowCount
+  mov rcx,rdi
+  call InvalidateThreadCpu
+ctRowCount:
   inc backCount
 ctAdvance:
   mov rcx,rbx
@@ -267,7 +280,13 @@ ctClose:
   mov rcx,rbx
   call CloseHandle
 ctDone:
-  add rsp,30h
+  mov rcx,r12
+  test rcx,rcx
+  jz ctOwnerClosed
+  call CloseHandle
+ctOwnerClosed:
+  add rsp,38h
+  pop r12
   pop rdi
   pop rsi
   pop rbx

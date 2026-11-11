@@ -15,6 +15,9 @@ serviceBuffer db 262144 dup(?)
 serviceBytes dd 0
 serviceCount dd 0
 serviceResume dd 0
+serviceEnumPages dd 0
+serviceEnumError dd 0
+serviceEnumTruncated dd 0
 wtsBuffer dq 0
 wtsCount dd 0
 wtsName dq 0
@@ -190,26 +193,69 @@ pcDone:
 PanelColumns ENDP
 
 CollectServices PROC
+  mov ecx,262144
+  mov edx,4096
+  jmp CollectServicesWithLimits
+CollectServices ENDP
+
+; ECX page bytes (1..262144), EDX row capacity (1..4096). The production entry
+; above always uses full limits. EAX/serviceEnumError reports incomplete reads;
+; usable records from ERROR_MORE_DATA pages are retained before resuming.
+CollectServicesWithLimits PROC
   push rbx
   push rsi
   push rdi
+  push r12
+  push r13
+  push r14
+  push r15
   sub rsp,60h
+  mov r12d,ecx
+  mov r13d,edx
   mov backCount,0
+  mov serviceEnumPages,0
+  mov serviceEnumError,0
+  mov serviceEnumTruncated,0
+  mov serviceResume,0
+  mov serviceCount,0
+  mov serviceBytes,0
+  xor ebx,ebx
+  test r12d,r12d
+  jz csInvalid
+  cmp r12d,SIZEOF serviceBuffer
+  ja csInvalid
+  test r13d,r13d
+  jz csInvalid
+  cmp r13d,4096
+  ja csInvalid
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz csCancelled
   xor ecx,ecx
   xor edx,edx
   mov r8d,4
   call OpenSCManagerW
   mov rbx,rax
   test rax,rax
-  jz csDone
-  mov serviceResume,0
-  mov rcx,rax
+  jnz csPage
+  call GetLastError
+  mov serviceEnumError,eax
+  jmp csDone
+csPage:
+  call CollectorSnapshotCurrent
+  test eax,eax
+  jz csCancelled
+  mov eax,serviceResume
+  mov [rsp+50h],eax
+  mov serviceCount,0
+  xor r15d,r15d ; this page is final unless SCM says ERROR_MORE_DATA
+  mov rcx,rbx
   xor edx,edx
   mov r8d,30h
   mov r9d,3
   lea rax,serviceBuffer
   mov [rsp+20h],rax
-  mov qword ptr [rsp+28h],262144
+  mov [rsp+28h],r12
   lea rax,serviceBytes
   mov [rsp+30h],rax
   lea rax,serviceCount
@@ -217,19 +263,26 @@ CollectServices PROC
   lea rax,serviceResume
   mov [rsp+40h],rax
   mov qword ptr [rsp+48h],0
+  inc serviceEnumPages
   call EnumServicesStatusExW
   test eax,eax
-  jz csClose
+  jnz csPageReady
+  call GetLastError
+  cmp eax,234 ; ERROR_MORE_DATA still returns serviceCount valid records
+  jne csEnumFailed
+  mov r15d,1
+csPageReady:
   lea rsi,serviceBuffer
+  xor r14d,r14d
 csNext:
   call CollectorSnapshotCurrent
   test eax,eax
-  jz csClose
+  jz csCancelled
+  cmp r14d,serviceCount
+  jae csPageDone
   mov eax,backCount
-  cmp eax,serviceCount
-  jae csClose
-  cmp eax,4096
-  jae csClose
+  cmp eax,r13d
+  jae csCapacity
   mov edi,eax
   shl rdi,12
   add rdi,backBuffer
@@ -270,18 +323,53 @@ csStateDone:
   lea rdx,[rdi+3072]
   call StoreDecimal
   inc backCount
+  inc r14d
   add rsi,56
   jmp csNext
+csPageDone:
+  test r15d,r15d
+  jz csClose
+  ; A too-small buffer or a nonadvancing resume handle must not spin forever.
+  cmp serviceCount,0
+  je csNoProgress
+  mov eax,serviceResume
+  test eax,eax
+  jz csNoProgress
+  cmp eax,[rsp+50h]
+  je csNoProgress
+  mov eax,backCount
+  cmp eax,r13d
+  jae csCapacity
+  jmp csPage
+csCapacity:
+  mov serviceEnumTruncated,1
+csNoProgress:
+  mov eax,234 ; incomplete snapshot: ERROR_MORE_DATA
+csEnumFailed:
+  mov serviceEnumError,eax
+  jmp csClose
+csInvalid:
+  mov serviceEnumError,87 ; ERROR_INVALID_PARAMETER
+  jmp csDone
+csCancelled:
+  mov serviceEnumError,1223 ; ERROR_CANCELLED
 csClose:
   mov rcx,rbx
+  test rcx,rcx
+  jz csDone
   call CloseServiceHandle
 csDone:
+  mov eax,serviceEnumError
   add rsp,60h
+  pop r15
+  pop r14
+  pop r13
+  pop r12
   pop rdi
   pop rsi
   pop rbx
   ret
-CollectServices ENDP
+CollectServicesWithLimits ENDP
 
 CollectUsers PROC
   push rbx
@@ -407,19 +495,7 @@ CollectPerformance PROC
   lea r8,percentText
   call MetricRow
 cpGpu:
-  cmp gpuValid,0
-  je cpVideo
-  lea rcx,gpuText
-  mov edx,gpuValue
-  lea r8,percentText
-  call MetricRow
-cpVideo:
-  cmp videoValid,0
-  je cpRam
-  lea rcx,gpuMemText
-  mov rdx,videoMiB
-  lea r8,mbText
-  call MetricRow
+  call GpCollectPerformance
 cpRam:
   mov dword ptr [memStatus],64
   lea rcx,memStatus

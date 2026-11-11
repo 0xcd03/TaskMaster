@@ -66,10 +66,12 @@ scSkipIconWorker:
   xor ecx,ecx
   xor edx,edx
   lea r8,CollectorMain
+IFDEF TM_TESTS
   cmp uiRegressionMode,0
   je scProductionEntry
   lea r8,UiRegressionCollector
 scProductionEntry:
+ENDIF
   xor r9d,r9d
   mov qword ptr [rsp+20h],0
   mov qword ptr [rsp+28h],0
@@ -109,12 +111,18 @@ asSameMode:
   mov eax,backCount
   mov frontCount,eax
   mov snapshotPending,0
-  call AddChartSample
+  call ApplyTelemetryChart
+  call PmUiFrame
+  call GpUiDemand
+  call GpUiPump
   call BuildRowMap
+  call PmUiPump
+IFDEF TM_TESTS
   cmp uiRegressionMode,0
   je asNotRegression
   inc uiRegressionAccepted
 asNotRegression:
+ENDIF
   mov rcx,chartWnd
   xor edx,edx
   xor r8d,r8d
@@ -261,6 +269,7 @@ cmInterval:
   call WaitForSingleObject
   jmp cmLoop
 cmExit:
+  call CloseTelemetry
   call SaveHistoryStore
   call ReleaseSuspensions
   mov rcx,taskFolder
@@ -497,6 +506,11 @@ crGetTimes:
   mov rax,timeKernel
   add rax,timeUser
   mov [rdi+3608],rax
+  ; The held limited handle has just supplied this row's creation identity.
+  ; A failed handle-count sample remains explicitly unavailable.
+  mov rcx,rdi
+  mov rdx,rsi
+  call PmRecordHandles
   mov rcx,rdi
   call RecordHistory
   mov rcx,rdi

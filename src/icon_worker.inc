@@ -15,7 +15,9 @@ align 8
 iconRequests db ICON_REQUEST_BYTES * ICON_REQUEST_COUNT dup(?)
 processIconStates dd 16384 dup(?) ; 0 unused, 1 pending, 2 ready, 3 failed
 iconWorkerShellInfo db 696 dup(?)
+IFDEF TM_TESTS
 iconTestRow db 4096 dup(?)
+ENDIF
 .code
 
 ; Producer only. Reserve any free slot without waiting for the consumer.
@@ -289,6 +291,7 @@ siwDone:
   ret
 StartIconWorker ENDP
 
+IFDEF TM_TESTS
 ; Isolated regression fixtures: bounded capacity, duplicate pending identities,
 ; cached publication, PID reuse, stale completion and shutdown cancellation.
 ; No worker is launched and no shell extension or real process is touched.
@@ -460,3 +463,4 @@ ResetIconQueueFixtures PROC
   pop rdi
   ret
 ResetIconQueueFixtures ENDP
+ENDIF

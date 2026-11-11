@@ -46,6 +46,7 @@ QueueStartupAction PROC
   lea rcx,startupActionPath
   lea rdx,[rsi+2560]
   call lstrcpyW
+IFDEF TM_TESTS
   ; Isolated UI tests capture the production target without changing Windows.
   cmp uiRegressionMode,0
   je qsaConfirm
@@ -53,6 +54,7 @@ QueueStartupAction PROC
   inc uiStartupCapturedCount
   jmp qsaDone
 qsaConfirm:
+ENDIF
   lea rcx,actionMessage
   lea rdx,startupConfirmFmt
   mov r8,rsi

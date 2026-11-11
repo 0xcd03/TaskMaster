@@ -1,0 +1,26 @@
+#pragma code_page(65001)
+STRINGTABLE
+BEGIN
+ 52400 "Warming up..."
+ 52401 "Прогрев..."
+ 52402 "No measurement"
+ 52403 "Нет измерения"
+ 52404 "Unavailable (%u)"
+ 52405 "Недоступно (%u)"
+ 52406 "Partial data (%u)"
+ 52407 "Неполные данные (%u)"
+ 52408 "Stale data"
+ 52409 "Данные устарели"
+ 52410 "GPU counters: PDH; process identity checked separately. Windows 10 process memory may be inaccurate (KB4490156)."
+ 52411 "GPU: счётчики PDH; идентичность процесса проверена отдельно. Память процессов в Windows 10 может быть неточной (KB4490156)."
+ 52412 "Dedicated GPU usage (MiB)"
+ 52413 "Выделенная память GPU, занято (МиБ)"
+ 52414 "Shared GPU usage (MiB)"
+ 52415 "Общая память GPU, занято (МиБ)"
+ 52416 "Dedicated GPU capacity (MiB)"
+ 52417 "Выделенная память GPU, объём (МиБ)"
+ 52418 "Shared GPU capacity (MiB)"
+ 52419 "Общая память GPU, предел (МиБ)"
+ 52420 "Software adapter"
+ 52421 "Программный адаптер"
+END

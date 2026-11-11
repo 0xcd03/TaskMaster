@@ -2,6 +2,52 @@
 
 Native Win32 process manager written in MASM x64. It uses Visual Studio Build Tools (`ml64.exe`, `link.exe`, `rc.exe`) and the Windows SDK; no IDE or external runtime is required.
 
+Current development setup and repeatable checks are documented in [DEVELOPMENT.md](DEVELOPMENT.md). The full Task Manager / PC Manager replacement scope and remaining work are tracked in [docs/ROADMAP.md](docs/ROADMAP.md). Local development binaries are built under `work/`; downloaded release binaries in `outputs/` are preserved.
+
+Process > Run new task opens a native EN/RU dialog with an absolute executable
+path, separate literal arguments, optional absolute working directory and Browse.
+A blank directory uses the directory captured when the dialog opens. Normal launch
+inherits TaskMaster's current permissions; the administrator checkbox explicitly
+requests UAC. Failed launches and UAC cancellation preserve the entered fields.
+Inputs are not saved as history. Launch and hidden-dialog fixture tests run through
+`test-new-task.ps1`; interactive UAC and desktop appearance require separate checks.
+
+Process > Process details opens an independent window pinned to the selected
+PID and creation time. It shows the executable path, SID, UTC/local creation time
+and Windows time-zone key, handles, private commit, working set, CPU and all six
+process I/O counters. Rates use consecutive valid samples of the same identity;
+the first or invalid interval is unavailable. Failed reads retain explicitly dated
+last-good values and clear current rates. The native reader runs on one bounded
+background worker across close/reopen. A separate bounded worker resolves the
+account name and reads the command line through Windows WMI. Its three-second
+acceptance deadline keeps native monitoring independent of slow providers;
+Refresh starts a new optional request while retaining valid native rate samples.
+Missing fields show explicit errors or timeout. The process table uses its own
+bounded metadata workers and cache, independent of this selected-details window.
+`test-process-details.ps1` runs collector, worker, rates, hidden native controls
+and real main-menu routing in separate fixture executables.
+`test-process-details-optional.ps1` checks the WMI/token collector, optional
+worker and hidden UI, including an owned child with a long Unicode command line.
+
+View > Choose process columns (also available from the header context menu)
+opens a native EN/RU picker. Sixteen fields support visibility, order, sorting
+and widths; Name stays first and PID remains visible.
+The additional fields are parent PID, private commit, start time in UTC, and
+the process's cumulative read/written bytes, user name, executable path, command
+line and handle count. Defaults and Cancel affect only
+the draft until OK. Layout persists per user through an atomic versioned file;
+save errors report that the layout remains active only for this session.
+The V2 layout preserves old V1 choices and leaves the V1 file untouched. A bad
+V2 file retains its diagnostic and defaults; only an absent V2 permits V1 loading.
+User, path and command line load on three independent background lanes with a
+bounded cache, a 60-second freshness interval and explicit loading/error/timeout
+states. Each lane admits one job at a time; a slow provider can outlive its
+three-second acceptance deadline. Handle count comes from the ordinary process
+snapshot. New fields describe the process itself in tree mode. The default
+seven fields remain visible until changed in the picker; metadata is not saved.
+`test-process-columns.ps1` checks storage, migration, native table and dialog;
+`test-process-metadata.ps1` checks cache, collectors, workers and presentation.
+
 ## Binaries
 
 - `TaskManagerX64.exe` — release configuration with the embedded `requireAdministrator` manifest.
@@ -13,12 +59,15 @@ The binaries are unsigned. Run the supplied `TaskManagerX64.exe` when process an
 ## Build
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\build-taskmanager.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File .\build-taskmanager.ps1 -Preview -OutputPath .\outputs\TaskManagerX64-standard.exe
-powershell -NoProfile -ExecutionPolicy Bypass -File .\verify-build.ps1 -Path .\outputs\TaskManagerX64.exe
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build-taskmanager.ps1 -OutputPath .\work\TaskManagerX64.exe
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build-taskmanager.ps1 -Preview -OutputPath .\work\TaskManagerX64-standard.exe
+powershell -NoProfile -ExecutionPolicy Bypass -File .\verify-build.ps1 -Path .\work\TaskManagerX64.exe
+powershell -NoProfile -ExecutionPolicy Bypass -File .\verify-build.ps1 -Path .\work\TaskManagerX64-standard.exe
 powershell -NoProfile -ExecutionPolicy Bypass -File .\build-tests.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\test-ui-regression.ps1
 ```
+
+For both builds and the complete current development check suite in one command, run `powershell -NoProfile -ExecutionPolicy Bypass -File .\verify-development.ps1`. Inspect `work/validation/summary.json`: skipped coverage makes `Complete` false. Verify the local binaries you just built, rather than the downloaded release copies in `outputs/`.
 
 `build-resources.ps1` generates UTF-16 Windows resources and the MASM string buffers from `res/ui-strings.json`. The generator checks RU/EN format arguments and length limits. English and Russian menus, process/thread/service/user/performance/startup/history labels, warning text and error text are covered.
 
@@ -65,7 +114,7 @@ Use `-LocalMachine` for the machine certificate store. The script uses Windows S
 
 `test-ui-regression.ps1` builds and runs a hidden test window using the actual controls. It covers immediate navigation while busy, delayed stale snapshots, 5000 displayed fixture rows across multiple accepted updates, message-response latency and light/dark color paths. It never modifies user settings or trims user processes. For v0.2.4 the computer-use tool failed to initialize (kernel asset path error), so no desktop screenshot verification is claimed. The standard binary was launched in the user session; its window title and responsiveness were confirmed.
 
-After building and validating both configurations, `package-release.ps1` creates release and source ZIPs from an explicit source set. It includes the current `outputs/verification.txt`, icon and SHA-256 checksums in the release, and excludes local history, settings, Git internals and scratch files.
+After building and validating both configurations, `package-release.ps1` creates release and source ZIPs from an explicit source set. It accepts `-SourceDirectory`, `-InputDirectory` and `-OutputDirectory`; defaults use this source tree and `outputs/`. Required inputs and both staged ZIPs are validated before existing artifacts change. The release includes the supplied `verification.txt`, icon, SHA-256 checksums and `PACKAGING.json`, which records that packaging performs no build or binary/source verification. Local history, settings, Git internals and scratch files are excluded. `test-package-release.ps1` verifies packaging in an isolated fixture without changing downloaded releases.
 
 The v0.2.4 UI revision paints the header remainder after native processing and handles the menu/client seam in non-client painting. The result panel stays inside the application layout. Processes, services and startup entries expose their actions through a row context menu. Startup rows use native checkboxes whose checked state is tied to the actual enabled/disabled source; changes still pass through the existing identity and hash validation. Settings menu entries show a check mark for the active language, theme, refresh interval and tree mode. Memory optimization reports its result in the themed bottom panel and exposes the full diagnostic text through `Details`.
 

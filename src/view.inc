@@ -246,8 +246,15 @@ BuildRowMap ENDP
 CompareRows PROC
   sub rsp,28h
   cmp frontMode,0
-  jne cmpLegacy
+  jne cmpThread
   call CompareProcessRows
+  jmp cmpDirection
+cmpThread:
+  cmp frontMode,1
+  jne cmpLegacy
+  cmp sortColumn,6
+  jne cmpLegacy
+  call CompareThreadCpuRows
   jmp cmpDirection
 cmpLegacy:
   mov eax,sortColumn
@@ -263,4 +270,49 @@ cmpDone:
   add rsp,28h
   ret
 CompareRows ENDP
+
+; CPU column uses validity and numeric tenths, independent of RU/EN text.
+; Equal CPU values have stable full thread/owner identity tie-breaks.
+CompareThreadCpuRows PROC
+  xor r8d,r8d
+  xor r9d,r9d
+  cmp dword ptr [rcx+3672],0
+  setne r8b
+  cmp dword ptr [rdx+3672],0
+  setne r9b
+  cmp r8d,r9d
+  ja ctcrLess
+  jb ctcrGreater
+  test r8d,r8d
+  jz ctcrIdentity
+  mov eax,[rcx+3900]
+  cmp eax,[rdx+3900]
+  jb ctcrLess
+  ja ctcrGreater
+ctcrIdentity:
+  mov eax,[rcx+3584]
+  cmp eax,[rdx+3584]
+  jb ctcrLess
+  ja ctcrGreater
+  mov rax,[rcx+3600]
+  cmp rax,[rdx+3600]
+  jb ctcrLess
+  ja ctcrGreater
+  mov eax,[rcx+3588]
+  cmp eax,[rdx+3588]
+  jb ctcrLess
+  ja ctcrGreater
+  mov rax,[rcx+3616]
+  cmp rax,[rdx+3616]
+  jb ctcrLess
+  ja ctcrGreater
+  xor eax,eax
+  ret
+ctcrLess:
+  mov eax,-1
+  ret
+ctcrGreater:
+  mov eax,1
+  ret
+CompareThreadCpuRows ENDP
 

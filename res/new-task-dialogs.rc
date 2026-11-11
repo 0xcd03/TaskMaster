@@ -1,0 +1,48 @@
+#pragma code_page(65001)
+303 DIALOGEX 0,0,380,246
+STYLE 0x80C800C0
+CAPTION "Run new task"
+FONT 9,"Segoe UI"
+BEGIN
+ LTEXT "Executable (full path):",-1,12,12,356,10
+ EDITTEXT 4001,12,26,294,14,0x50010080
+ PUSHBUTTON "Browse...",4004,312,26,56,14
+ LTEXT "Arguments (passed exactly as entered):",-1,12,48,356,10
+ EDITTEXT 4002,12,62,356,14,0x50010080
+ LTEXT "Working directory (optional):",-1,12,84,356,10
+ EDITTEXT 4003,12,98,356,14,0x50010080
+ AUTOCHECKBOX "Request administrator privileges (UAC)",4005,12,120,356,14
+ LTEXT "Normal launch uses Task Master's current permissions. If Task Master is elevated, the new task is elevated too.",4007,12,139,356,26
+ LTEXT "",4006,12,170,356,38,0x50000080
+ DEFPUSHBUTTON "Run",1,248,220,55,16
+ PUSHBUTTON "Cancel",2,309,220,59,16
+END
+304 DIALOGEX 0,0,380,246
+STYLE 0x80C800C0
+CAPTION "Запустить новую задачу"
+FONT 9,"Segoe UI"
+BEGIN
+ LTEXT "Программа (полный путь):",-1,12,12,356,10
+ EDITTEXT 4001,12,26,294,14,0x50010080
+ PUSHBUTTON "Обзор...",4004,312,26,56,14
+ LTEXT "Аргументы (передаются точно как введены):",-1,12,48,356,10
+ EDITTEXT 4002,12,62,356,14,0x50010080
+ LTEXT "Рабочая папка (необязательно):",-1,12,84,356,10
+ EDITTEXT 4003,12,98,356,14,0x50010080
+ AUTOCHECKBOX "Запросить права администратора (UAC)",4005,12,120,356,14
+ LTEXT "Обычный запуск использует текущие права Task Master. Если Task Master запущен администратором, новая задача тоже получит эти права.",4007,12,139,356,26
+ LTEXT "",4006,12,170,356,38,0x50000080
+ DEFPUSHBUTTON "Запустить",1,248,220,55,16
+ PUSHBUTTON "Отмена",2,309,220,59,16
+END
+STRINGTABLE
+BEGIN
+ 50000 "Error %u: %s"
+ 50001 "Ошибка %u: %s"
+ 50002 "Administrator request cancelled (1223). Your entries are unchanged."
+ 50003 "Запрос прав администратора отменён (1223). Введённые данные сохранены."
+ 50004 "Choose an executable"
+ 50005 "Выберите программу"
+ 50006 "Unable to open the new-task dialog."
+ 50007 "Не удалось открыть диалог запуска задачи."
+END

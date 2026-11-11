@@ -357,6 +357,7 @@ InitScrollTheme PROC
   ret
 InitScrollTheme ENDP
 
+IFDEF TM_TESTS
 .data
 scrollTestWindow dd 100,200,356,240
 scrollTestFill dd 0,0,256,40
@@ -475,3 +476,4 @@ ClearScrollTestSurface PROC
   add rsp,28h
   ret
 ClearScrollTestSurface ENDP
+ENDIF

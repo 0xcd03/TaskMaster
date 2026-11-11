@@ -138,7 +138,23 @@ RunExtendedAction PROC
   push rsi
   push rdi
   sub rsp,60h
-  mov ecx,1511h
+  ; Query/guard rights are common; request only what the selected action uses.
+  ; Shell inspection must not require termination, VM_READ or quota access.
+  mov ecx,1000h ; PROCESS_QUERY_LIMITED_INFORMATION
+  cmp actionCode,2014
+  je reaDumpAccess
+  cmp actionCode,2015
+  jb reaOpenProcess
+  cmp actionCode,2016
+  ja reaAffinityAccess
+  mov ecx,1101h ; limited query | SET_QUOTA | TERMINATE (job assignment)
+  jmp reaOpenProcess
+reaDumpAccess:
+  mov ecx,1410h ; limited query | QUERY_INFORMATION | VM_READ
+  jmp reaOpenProcess
+reaAffinityAccess:
+  mov ecx,1600h ; limited query | QUERY_INFORMATION | SET_INFORMATION
+reaOpenProcess:
   xor edx,edx
   mov r8d,actionPid
   call OpenProcess

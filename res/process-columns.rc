@@ -1,0 +1,74 @@
+#pragma code_page(65001)
+307 DIALOGEX 0,0,330,344
+STYLE 0x80C800C0
+EXSTYLE 0x00000080
+CAPTION "Choose process columns"
+FONT 9,"Segoe UI"
+BEGIN
+ LTEXT "Choose fields and their order. Name and PID are required.",4305,10,10,310,24
+ CONTROL "",4300,"SysListView32",0x5081000D,10,38,236,210
+ PUSHBUTTON "Up",4301,252,38,68,18
+ PUSHBUTTON "Down",4302,252,62,68,18
+ PUSHBUTTON "Defaults",4303,252,92,68,18
+ LTEXT "",4304,10,254,310,54
+ DEFPUSHBUTTON "OK",1,180,316,68,18
+ PUSHBUTTON "Cancel",2,252,316,68,18
+END
+308 DIALOGEX 0,0,330,344
+STYLE 0x80C800C0
+EXSTYLE 0x00000080
+CAPTION "Выбрать столбцы процессов"
+FONT 9,"Segoe UI"
+BEGIN
+ LTEXT "Выберите поля и их порядок. Имя и PID обязательны.",4305,10,10,310,24
+ CONTROL "",4300,"SysListView32",0x5081000D,10,38,236,210
+ PUSHBUTTON "Вверх",4301,252,38,68,18
+ PUSHBUTTON "Вниз",4302,252,62,68,18
+ PUSHBUTTON "По умолчанию",4303,252,92,68,30
+ LTEXT "",4304,10,254,310,54
+ DEFPUSHBUTTON "OK",1,180,316,68,18
+ PUSHBUTTON "Отмена",2,252,316,68,18
+END
+STRINGTABLE
+BEGIN
+ 52200 "Choose process columns"
+ 52201 "Выбрать столбцы процессов"
+ 52202 "Name remains first for the process tree. I/O includes non-disk devices. Private commit is not private working set. UTC, parent PID and byte counters describe this process; memory/CPU/rate follow the tree view."
+ 52203 "Имя закреплено первым для дерева. I/O включает недисковые устройства. Private commit не равен private working set. UTC, родительский PID и счётчики байт относятся к самому процессу; память/CPU/скорость следуют режиму дерева."
+ 52204 "Layout applied for this session; unable to save it (error %u)."
+ 52205 "Макет применён в текущем сеансе, но сохранить его не удалось (ошибка %u)."
+ 52206 "Unable to apply this layout (error %u)."
+ 52207 "Не удалось применить макет (ошибка %u)."
+ 52214 "Parent PID"
+ 52215 "Родительский PID"
+ 52216 "Private commit (MiB)"
+ 52217 "Private commit (МиБ)"
+ 52218 "Started (UTC)"
+ 52219 "Запуск (UTC)"
+ 52220 "Read bytes (process)"
+ 52221 "Прочитано байт (процесс)"
+ 52222 "Written bytes (process)"
+ 52223 "Записано байт (процесс)"
+ 52224 "User name"
+ 52225 "Пользователь"
+ 52226 "Image path"
+ 52227 "Путь к файлу"
+ 52228 "Command line"
+ 52229 "Командная строка"
+ 52230 "Handles (process)"
+ 52231 "Дескрипторы (процесс)"
+ 52232 "GPU (%)"
+ 52233 "ГП (%)"
+ 52234 "GPU engine"
+ 52235 "Ядро ГП"
+ 52236 "Dedicated GPU memory (MiB)"
+ 52237 "Выделенная память ГП (МиБ)"
+ 52238 "Shared GPU memory (MiB)"
+ 52239 "Общая память ГП (МиБ)"
+ 52310 "Loading..."
+ 52311 "Загрузка..."
+ 52312 "Timed out (%u)"
+ 52313 "Время ожидания истекло (%u)"
+ 52314 "Unavailable (%u)"
+ 52315 "Недоступно (%u)"
+END

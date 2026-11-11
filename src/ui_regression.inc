@@ -5,7 +5,7 @@
 extern SendMessageTimeoutW:proc, GetStdHandle:proc, wsprintfA:proc
 .data
 align 8
-uiRegressionMode dd 0
+; uiRegressionMode is declared by test_runtime_support.inc for both builds.
 uiRegressionFailure dd 0
 uiRegressionAck dd 0
 uiRegressionObservedMode dd 0
@@ -478,6 +478,28 @@ urtNavControl:
   mov uiRegressionFailure,eax
   jmp urtDestroy
 urtControlsPassed:
+  call NewTaskDialogRoutingTests
+  test eax,eax
+  jz urtNewTaskRoutePassed
+  mov uiRegressionFailure,eax
+  jmp urtDestroy
+urtNewTaskRoutePassed:
+IFDEF PC_TESTS
+  call PcUiRoutingTests
+  test eax,eax
+  jz urtProcessColumnsRoutePassed
+  mov uiRegressionFailure,eax
+  jmp urtDestroy
+urtProcessColumnsRoutePassed:
+ENDIF
+IFDEF PD_TESTS
+  call PdUiRoutingTests
+  test eax,eax
+  jz urtProcessDetailsRoutePassed
+  mov uiRegressionFailure,eax
+  jmp urtDestroy
+urtProcessDetailsRoutePassed:
+ENDIF
   call MemoryAnimationTests
   test eax,eax
   jz urtAnimationPassed

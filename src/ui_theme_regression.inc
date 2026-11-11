@@ -14,8 +14,16 @@ uiThemeExpectedSelected dd 0F4E5D6h,493D30h
 uiThemeDc dq 0
 uiThemeBitmap dq 0
 uiThemeOldBitmap dq 0
+uiThemeHeaderResized dd 0
+uiThemeTailPixel dd 0
+uiThemeDiagnosticBytes dd 0
+uiThemeDiagnosticFormat db 'Header paint: theme=%u, lastRight=%d, clientRight=%d, clientBottom=%d, pixel=%08X',13,10,0
 .data?
 align 8
+uiThemeDiagnostic db 256 dup(?)
+uiThemeSavedHeaderRect RECT <>
+uiThemeHeaderRect RECT <>
+uiThemeLastRect RECT <>
 uiThemeBrushInfo db 16 dup(?)
 uiThemeHeaderDraw db 80 dup(?)
 uiThemeMenuInfo db 80 dup(?)
@@ -25,8 +33,49 @@ UiThemeRegression PROC
   push rbx
   push rsi
   push rdi
-  sub rsp,30h
+  sub rsp,40h
   mov uiThemeStage,130
+  ; The test window can be narrower than the DPI-scaled columns. Give this
+  ; hidden header a deliberate tail, preserving its original size for cleanup.
+  mov rcx,processHeader
+  lea rdx,uiThemeSavedHeaderRect
+  call GetWindowRect
+  test eax,eax
+  jz utrCleanup
+  mov rcx,processHeader
+  mov edx,1200h ; HDM_GETITEMCOUNT
+  xor r8d,r8d
+  xor r9d,r9d
+  call SendMessageW
+  test eax,eax
+  jle utrCleanup
+  lea r8d,[eax-1]
+  mov rcx,processHeader
+  mov edx,1207h ; HDM_GETITEMRECT
+  lea r9,uiThemeLastRect
+  call SendMessageW
+  test eax,eax
+  jz utrCleanup
+  mov rcx,processHeader
+  xor edx,edx
+  xor r8d,r8d
+  xor r9d,r9d
+  mov eax,uiThemeLastRect.rcRight
+  add eax,64
+  mov [rsp+20h],eax
+  mov eax,uiThemeSavedHeaderRect.rcBottom
+  sub eax,uiThemeSavedHeaderRect.rcTop
+  mov [rsp+28h],eax
+  mov qword ptr [rsp+30h],16h ; NOMOVE | NOZORDER | NOACTIVATE
+  call SetWindowPos
+  test eax,eax
+  jz utrCleanup
+  mov uiThemeHeaderResized,1
+  mov rcx,processHeader
+  lea rdx,uiThemeHeaderRect
+  call GetClientRect
+  test eax,eax
+  jz utrCleanup
   mov rcx,gMain
   call GetDC
   mov rbx,rax
@@ -36,8 +85,14 @@ UiThemeRegression PROC
   call CreateCompatibleDC
   mov uiThemeDc,rax
   mov rcx,rbx
-  mov edx,2048
-  mov r8d,40
+  mov edx,uiThemeHeaderRect.rcRight
+  mov eax,256 ; synthetic item/menu callbacks below cover a 256 x 40 rect
+  cmp edx,eax
+  cmovl edx,eax
+  mov r8d,uiThemeHeaderRect.rcBottom
+  mov eax,40
+  cmp r8d,eax
+  cmovl r8d,eax
   call CreateCompatibleBitmap
   mov uiThemeBitmap,rax
   mov rcx,gMain
@@ -126,13 +181,14 @@ utrTheme:
   mov r8,uiThemeDc
   mov r9d,4 ; PRF_CLIENT
   call SendMessageW
-  mov edx,headerLastRect.rcRight
+  mov edx,uiThemeLastRect.rcRight
   add edx,3
-  cmp edx,headerClientRect.rcRight
+  cmp edx,uiThemeHeaderRect.rcRight
   jae utrCleanup
   mov rcx,uiThemeDc
   mov r8d,2
   call GetPixel
+  mov uiThemeTailPixel,eax
   lea rdx,uiThemeExpectedHeader
   cmp eax,[rdx+rsi*4]
   jne utrCleanup
@@ -215,6 +271,10 @@ utrMenuExpected:
   inc uiThemeAssertions
   mov uiThemeStage,0
 utrCleanup:
+  cmp uiThemeStage,135
+  jne utrDeleteObjects
+  call UiThemeHeaderDiagnostic
+utrDeleteObjects:
   mov rcx,uiThemeDc
   test rcx,rcx
   jz utrBitmap
@@ -233,10 +293,53 @@ utrBitmap:
   jz utrReturn
   call DeleteObject
 utrReturn:
+  cmp uiThemeHeaderResized,0
+  je utrResult
+  mov rcx,processHeader
+  xor edx,edx
+  xor r8d,r8d
+  xor r9d,r9d
+  mov eax,uiThemeSavedHeaderRect.rcRight
+  sub eax,uiThemeSavedHeaderRect.rcLeft
+  mov [rsp+20h],eax
+  mov eax,uiThemeSavedHeaderRect.rcBottom
+  sub eax,uiThemeSavedHeaderRect.rcTop
+  mov [rsp+28h],eax
+  mov qword ptr [rsp+30h],16h
+  call SetWindowPos
+  mov uiThemeHeaderResized,0
+utrResult:
   mov eax,uiThemeStage
-  add rsp,30h
+  add rsp,40h
   pop rdi
   pop rsi
   pop rbx
   ret
 UiThemeRegression ENDP
+
+; Failure-only evidence for the offscreen header geometry and paint assertion.
+UiThemeHeaderDiagnostic PROC
+  sub rsp,58h
+  lea rcx,uiThemeDiagnostic
+  lea rdx,uiThemeDiagnosticFormat
+  mov r8d,themeOption
+  mov r9d,uiThemeLastRect.rcRight
+  mov eax,uiThemeHeaderRect.rcRight
+  mov [rsp+20h],rax
+  mov eax,uiThemeHeaderRect.rcBottom
+  mov [rsp+28h],rax
+  mov eax,uiThemeTailPixel
+  mov [rsp+30h],rax
+  call wsprintfA
+  mov [rsp+40h],eax
+  mov ecx,-11
+  call GetStdHandle
+  mov rcx,rax
+  lea rdx,uiThemeDiagnostic
+  mov r8d,[rsp+40h]
+  lea r9,uiThemeDiagnosticBytes
+  mov qword ptr [rsp+20h],0
+  call WriteFile
+  add rsp,58h
+  ret
+UiThemeHeaderDiagnostic ENDP

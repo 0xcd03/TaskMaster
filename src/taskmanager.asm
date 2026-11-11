@@ -1,5 +1,28 @@
 option casemap:none
 
+; Every feature fixture build includes the shared native test support.
+IFDEF PD_TESTS
+ IFNDEF TM_TESTS
+  TM_TESTS equ 1
+ ENDIF
+ENDIF
+IFDEF PC_TESTS
+ IFNDEF TM_TESTS
+  TM_TESTS equ 1
+ ENDIF
+ENDIF
+IFDEF PM_TESTS
+ IFNDEF TM_TESTS
+  TM_TESTS equ 1
+ ENDIF
+ENDIF
+IFDEF GP_TESTS
+ IFNDEF TM_TESTS
+  TM_TESTS equ 1
+ ENDIF
+ENDIF
+
+
 ; TaskManagerX64 - small native MASM x64 process manager foundation.
 ; Build with build-taskmanager.ps1.  No CRT is used.
 
@@ -261,6 +284,12 @@ integrationUnregistered:
   je minimumSize
   cmp edx,8001h
   je snapshotReady
+  cmp edx,PC_LAYOUT_MESSAGE
+  je processColumnsChanged
+  cmp edx,8064h ; PM_READY_MESSAGE
+  je processMetadataReady
+  cmp edx,8065h ; GP_MESSAGE
+  je processGpuReady
   cmp edx,WM_NOTIFY
   je displayNotify
   cmp edx,WM_CONTEXTMENU
@@ -277,6 +306,8 @@ integrationUnregistered:
   je paintMenuFrame
   cmp edx,WM_COMMAND
   je menuCommand
+  cmp edx,117h
+  je processDetailsMenu
   cmp edx,8002h
   je actionComplete
   cmp edx,231h
@@ -291,6 +322,20 @@ integrationUnregistered:
   je simpleTimer
   cmp edx,WM_DESTROY
   jne swp_def
+  call PcCaptureLayout
+  test eax,eax
+  jnz simpleColumnsCaptured
+  call PcPersistCurrent
+simpleColumnsCaptured:
+  mov rcx,pdWindow
+  test rcx,rcx
+  jz simpleDetailsClosed
+  call DestroyWindow
+simpleDetailsClosed:
+  call PdWorkerStop
+  call PdOptionalWorkerStop
+  call PmUiStop
+  call GpUiStop
   mov collectorStop,1
   mov rcx,refreshEvent
   call SetEvent
@@ -434,6 +479,16 @@ simpleResize:
   add rsp,68h
   ret
 simpleTimer:
+  cmp r8d,65h ; GP_TIMER_ID
+  je processGpuReady
+  cmp r8d,64h ; PM_TIMER_ID
+  jne simpleTimerDone
+processMetadataReady:
+  call PmUiPump
+  jmp simpleTimerDone
+processGpuReady:
+  call GpUiPump
+simpleTimerDone:
   xor eax,eax
   add rsp,68h
   ret
@@ -456,6 +511,19 @@ snapshotReady:
   cmp movingWindow,0
   jne moveDone
   call ApplySnapshot
+  jmp moveDone
+processColumnsChanged:
+  mov pcCapturePending,0
+  cmp frontMode,0
+  jne moveDone
+  cmp pcAppliedMode,0
+  jne moveDone
+  cmp pcApplying,0
+  jne moveDone
+  call PcCaptureLayout
+  test eax,eax
+  jnz moveDone
+  call PcPersistCurrent
   jmp moveDone
 displayNotify:
   mov rax,gList
@@ -499,13 +567,24 @@ displayStateDone:
   mov edx,[rax+3880]
   mov [r9+60],edx
   mov [rsp+40h],r9
-  mov edx,dword ptr [r9+32]
-  mov rcx,rax
+  mov [rsp+48h],rax
+  mov ecx,dword ptr [r9+32]
+  call PcColumnId
+  cmp eax,PC_COLUMN_COUNT
+  jae moveDone
+  mov edx,eax
+  mov rcx,[rsp+48h]
   call ProcessDisplayText
   mov r9,[rsp+40h]
   mov qword ptr [r9+48],rax
   jmp moveDone
 contextMenu:
+  cmp r8,processHeader
+  jne contextMenuList
+  mov rcx,r9
+  call PcShowHeaderMenu
+  jmp moveDone
+contextMenuList:
   cmp r8,gList
   jne moveDone
   call ShowListContextMenu
@@ -522,6 +601,10 @@ displayNormal:
   shl edx,9
   add rax,rdx
   mov qword ptr [r9+48],rax
+  jmp moveDone
+processDetailsMenu:
+  call PdUiUpdateMenu
+  call PcUpdateMenu
   jmp moveDone
 menuCommand:
   mov eax,r8d
@@ -554,6 +637,21 @@ reportButtonLabel:
   call LayoutContent
   jmp moveDone
 menuNormalRouteAction:
+  cmp ecx,2500
+  jne menuExistingAction
+  call ShowNewTaskDialog
+  jmp moveDone
+menuExistingAction:
+  cmp ecx,2501
+  jne menuOtherAction
+  call ShowSelectedProcessDetails
+  jmp moveDone
+menuOtherAction:
+  cmp ecx,2502
+  jne menuExistingSettings
+  call ShowProcessColumnsDialog
+  jmp moveDone
+menuExistingSettings:
   cmp ecx,2300
   jb menuAction
   call SettingsCommand
@@ -563,8 +661,17 @@ menuAction:
   jmp moveDone
 columnClicked:
   mov eax,dword ptr [r9+28]
+  cmp frontMode,0
+  jne columnClickedLegacy
+  mov ecx,eax
+  call PcColumnId
+  cmp eax,PC_COLUMN_COUNT
+  jae moveDone
+  jmp columnClickedSemantic
+columnClickedLegacy:
   cmp eax,7
   jae moveDone
+columnClickedSemantic:
   cmp eax,sortColumn
   jne newSortColumn
   xor sortDescending,1
@@ -575,6 +682,9 @@ newSortColumn:
 doSortColumn:
   call RememberSelection
   call BuildRowMap
+  cmp frontMode,0
+  jne moveDone
+  call PcQueueLayoutCapture
   jmp moveDone
 actionComplete:
   mov rcx,reportWnd
@@ -697,6 +807,11 @@ simple_loop:
   test eax,eax
   jle simple_exit
   lea rcx,messageBuffer
+  call PdUiPreTranslate
+  test eax,eax
+  jnz simple_loop
+simpleMainMessage:
+  lea rcx,messageBuffer
   call TranslateMessage
   lea rcx,messageBuffer
   call DispatchMessageW
@@ -809,6 +924,25 @@ ShowListContextMenu PROC
   je slcmStartup
   jmp slcmDestroy
 slcmProcess:
+  mov edx,52000
+  call PdUiLoadText
+  mov r9,rax
+  mov rcx,rbx
+  xor edx,edx
+  mov r8d,2501
+  call AppendMenuW
+  mov rcx,gList
+  mov edx,LVM_GETNEXTITEM
+  mov r8,-1
+  mov r9d,LVNI_SELECTED
+  call SendMessageW
+  cmp eax,visibleCount
+  jb slcmDetailsAvailable
+  mov rcx,rbx
+  mov edx,2501
+  mov r8d,1
+  call EnableMenuItem
+slcmDetailsAvailable:
   mov rcx,rbx
   xor edx,edx
   mov r8d,2001
@@ -873,6 +1007,11 @@ slcmTrack:
   test eax,eax
   jz slcmDestroy
   mov ecx,eax
+  cmp ecx,2501
+  jne slcmAction
+  call ShowSelectedProcessDetails
+  jmp slcmDestroy
+slcmAction:
   call QueueAction
 slcmDestroy:
   mov rcx,rbx
@@ -1157,15 +1296,26 @@ sgEnd:
   pop rbx
   ret
 SnapshotGui ENDP
+include process_columns_contract.inc
+include gpu_contract.inc
+include process_columns_model.inc
+include process_columns_native.inc
+include process_columns_ui.inc
+include test_runtime_support.inc
 include collector.inc
 include actions.inc
 include threads.inc
+include thread_metrics.inc
+IFDEF TM_TESTS
 include selftest.inc
+ENDIF
 include panels.inc
 include view.inc
 include telemetry.inc
 include integration.inc
+IFDEF TM_TESTS
 include integration_tests.inc
+ENDIF
 include memory_settings.inc
 include settings.inc
 include startup.inc
@@ -1181,16 +1331,105 @@ include startup_v2.inc
 include startup_control.inc
 include tree_control.inc
 include ui_strings.inc
+IFDEF TM_TESTS
 include model_tests.inc
+ENDIF
 include application_roots.inc
 include dpi.inc
+IFDEF TM_TESTS
 include task_test.inc
+ENDIF
 include action_errors.inc
 include process_ui.inc
+IFDEF TM_TESTS
 include process_ui_tests.inc
+ENDIF
 include menu_theme.inc
+IFDEF TM_TESTS
 include menu_theme_tests.inc
+ENDIF
+IFDEF TM_TESTS
 include ui_regression.inc
+ENDIF
+IFDEF TM_TESTS
+include thread_metrics_tests.inc
+ENDIF
+IFDEF TM_TESTS
+include service_enumeration_tests.inc
+ENDIF
+include new_task_launch.inc
+include new_task_dialog.inc
+IFDEF TM_TESTS
+include new_task_launch_tests.inc
+ENDIF
+IFDEF TM_TESTS
+include new_task_dialog_tests.inc
+ENDIF
+include process_details_contract.inc
+include process_details_collect.inc
+include process_metadata_contract.inc
+include process_metadata_handles.inc
+include process_details_worker.inc
+include process_details_optional_collect.inc
+include process_details_optional_worker.inc
+include process_metadata_cache.inc
+include process_metadata_collect.inc
+include process_metadata_worker.inc
+include process_metadata_ui.inc
+include process_details_rates.inc
+include process_details_ui.inc
+include process_details_optional_ui.inc
+include gpu_model.inc
+include gpu_provider.inc
+include gpu_worker.inc
+include gpu_ui.inc
+include gpu_performance.inc
+include gpu_chart_ui.inc
+IFDEF GP_TESTS
+include gpu_model_tests.inc
+include gpu_provider_tests.inc
+include gpu_worker_tests.inc
+include gpu_ui_tests.inc
+include gpu_performance_tests.inc
+include gpu_chart_tests.inc
+GpuModelTest PROC
+  sub rsp,28h
+  call GpModelTest
+  mov ecx,eax
+  call ExitProcess
+GpuModelTest ENDP
+ENDIF
+IFDEF PD_TESTS
+include process_details_collect_tests.inc
+include process_details_worker_tests.inc
+include process_details_rates_tests.inc
+include process_details_ui_tests.inc
+include process_details_route_tests.inc
+include process_details_optional_collect_tests.inc
+include process_details_optional_worker_tests.inc
+include process_details_optional_ui_tests.inc
+ENDIF
+IFDEF PC_TESTS
+include process_columns_model_tests.inc
+include process_columns_native_tests.inc
+include process_columns_ui_tests.inc
+include process_columns_route_tests.inc
+include process_columns_migration_tests.inc
+ENDIF
+IFDEF PM_TESTS
+include process_metadata_handles_tests.inc
+include process_metadata_presentation_tests.inc
+include process_metadata_cache_tests.inc
+include process_metadata_collect_tests.inc
+include process_metadata_worker_tests.inc
+include process_metadata_ui_tests.inc
+ProcessMetadataCacheTest PROC
+  sub rsp,28h
+  call PmCacheTest
+  mov ecx,eax
+  call ExitProcess
+ProcessMetadataCacheTest ENDP
+ENDIF
 END
 
 

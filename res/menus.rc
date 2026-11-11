@@ -2,6 +2,9 @@
 BEGIN
  POPUP "Process"
  BEGIN
+  MENUITEM "Run new task...",2500
+  MENUITEM "Process details...",2501
+  MENUITEM SEPARATOR
   MENUITEM "End process / thread...",2001
   MENUITEM "Pause...",2002
   MENUITEM "Resume our pauses...",2003
@@ -33,6 +36,8 @@ BEGIN
   MENUITEM "Performance",2104
   MENUITEM "Startup sources",2105
   MENUITEM "Persistent app history",2106
+  MENUITEM SEPARATOR
+  MENUITEM "Choose process columns...",2502
  END
  POPUP "Service"
  BEGIN
@@ -67,6 +72,9 @@ END
 BEGIN
  POPUP "Процесс"
  BEGIN
+  MENUITEM "Запустить новую задачу...",2500
+  MENUITEM "Сведения о процессе...",2501
+  MENUITEM SEPARATOR
   MENUITEM "Завершить процесс / поток...",2001
   MENUITEM "Приостановить...",2002
   MENUITEM "Снять наши приостановки...",2003
@@ -98,6 +106,8 @@ BEGIN
   MENUITEM "Производительность",2104
   MENUITEM "Источники автозагрузки",2105
   MENUITEM "Постоянная история",2106
+  MENUITEM SEPARATOR
+  MENUITEM "Выбрать столбцы процессов...",2502
  END
  POPUP "Служба"
  BEGIN

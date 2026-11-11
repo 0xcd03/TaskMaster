@@ -151,12 +151,18 @@ plsHandled:
 plsNotify:
   cmp edx,4Eh
   jne plsRestore
+  mov rcx,r9
+  call PcHeaderNotify
+  test edx,edx
+  jnz plsReturnHeader
+  mov r9,[rsp+38h]
   mov rax,processHeader
   cmp [r9],rax
   jne plsRestore
   cmp dword ptr [r9+16],-12
   jne plsRestore
   call ProcessHeaderCustomDraw
+plsReturnHeader:
   add rsp,58h
   ret
 plsRestore:
@@ -174,6 +180,16 @@ ProcessListSubclass ENDP
 ; a white strip while retaining native header hit testing and sorting.
 ProcessHeaderSubclass PROC
   sub rsp,48h
+  cmp edx,7Bh ; header owns its context menu, independent of ListView forwarding
+  jne phsPaintMessages
+  cmp frontMode,0
+  jne phsDefault
+  mov rcx,r9
+  call PcShowHeaderMenu
+  xor eax,eax
+  add rsp,48h
+  ret
+phsPaintMessages:
   cmp edx,318h ; WM_PRINTCLIENT: same render path for offscreen control tests
   je phsPrint
   cmp edx,14h ; WM_ERASEBKGND: suppress the default white background
@@ -238,15 +254,25 @@ PaintHeaderBackground PROC
   call SendMessageW
   test eax,eax
   jz phbFill
-  lea r8d,[eax-1]
+  mov [rsp+20h],eax
+  mov dword ptr [rsp+24h],0
+phbRectLoop:
+  mov r8d,[rsp+24h]
   mov rcx,processHeader
   mov edx,1207h
   lea r9,headerLastRect
   call SendMessageW
   test eax,eax
-  jz phbFill
+  jz phbRectNext
   mov eax,headerLastRect.rcRight
+  cmp eax,headerClientRect.rcLeft
+  jle phbRectNext
   mov headerClientRect.rcLeft,eax
+phbRectNext:
+  inc dword ptr [rsp+24h]
+  mov eax,[rsp+24h]
+  cmp eax,[rsp+20h]
+  jb phbRectLoop
 phbFill:
   mov rcx,rbx
   mov edx,202020h
@@ -352,8 +378,15 @@ phcdInk:
   mov eax,8824h ; SINGLELINE | VCENTER | NOPREFIX | END_ELLIPSIS
   cmp frontMode,0
   jne phcdText
-  cmp qword ptr [rbx+56],2
+  mov [rsp+20h],eax
+  mov ecx,[rbx+56]
+  call PcColumnId
+  mov ecx,eax
+  mov eax,[rsp+20h]
+  cmp ecx,2
   jb phcdText
+  cmp ecx,12
+  jae phcdText
   or eax,2 ; DT_RIGHT for the resource figures
 phcdText:
   mov [rsp+20h],eax
@@ -579,11 +612,13 @@ ftpuFormat:
   ret
 FormatTreeProcessUi ENDP
 
-; RCX row, EDX visible process column -> RAX stable text.
+; RCX row, EDX stable process column -> RAX stable text.
 ProcessDisplayText PROC
   sub rsp,28h
   test rcx,rcx
   jz pdtUnavailable
+  cmp edx,7
+  jae pdtExtra
   mov rax,rcx
   test edx,edx
   jz pdtName
@@ -679,6 +714,9 @@ pdtTreeIoFormat:
   call wsprintfW
   lea rax,processDisplayBuffer
   jmp pdtDone
+pdtExtra:
+  call PcDisplayExtra
+  jmp pdtDone
 pdtUnavailable:
   lea rax,unavailable
 pdtDone:
@@ -688,73 +726,107 @@ ProcessDisplayText ENDP
 
 ; RCX/RDX rows. Numeric resource sorting, no lexicographic decimal errors.
 CompareProcessRows PROC
-  mov eax,sortColumn
-  test eax,eax
-  jz cprNames
-  cmp eax,1
-  je cprState
-  cmp eax,2
-  je cprCpu
-  cmp eax,3
-  je cprMemory
-  cmp eax,4
-  je cprIo
-  cmp eax,5
-  je cprThreads
-  mov eax,[rcx+3584]
-  mov edx,[rdx+3584]
-  jmp cprCompare
-cprState:
-  mov eax,[rcx+3884]
-  mov edx,[rdx+3884]
-  jmp cprCompare
-cprCpu:
-  cmp treeEnabled,0
-  je cprOwnCpu
-  mov rax,[rcx+4040]
-  mov rdx,[rdx+4040]
-  jmp cprCompare
-cprOwnCpu:
-  mov eax,[rcx+3900]
-  mov edx,[rdx+3900]
-  jmp cprCompare
-cprMemory:
-  cmp treeEnabled,0
-  je cprOwnMemory
-  mov rax,[rcx+3728]
-  mov rdx,[rdx+3728]
-  jmp cprCompare
-cprOwnMemory:
-  mov rax,[rcx+3632]
-  mov rdx,[rdx+3632]
-  jmp cprCompare
-cprIo:
-  cmp treeEnabled,0
-  je cprOwnIo
-  mov rax,[rcx+4048]
-  mov rdx,[rdx+4048]
-  jmp cprCompare
-cprOwnIo:
-  mov rax,[rcx+3888]
-  mov rdx,[rdx+3888]
-cprCompare:
-  cmp rax,rdx
-  mov eax,0
-  je cprDone
+  push rbx
+  push rsi
+  push rdi
+  push r12
+  sub rsp,28h
+  mov rbx,rcx
+  mov rsi,rdx
+  cmp sortColumn,0
+  je cprNames
+  cmp sortColumn,PC_GPU_ENGINE
+  je cprGpuEngine
+  cmp sortColumn,PC_ACCOUNT
+  jb cprNumeric
+  cmp sortColumn,PC_COMMAND
+  jbe cprMetadata
+cprNumeric:
+  mov edx,sortColumn
+  call PcSortMetric
+  mov rdi,rax
+  mov r12d,ecx
+  mov rcx,rsi
+  mov edx,sortColumn
+  call PcSortMetric
+  cmp r12d,ecx
+  jne cprValidity
+  test ecx,ecx
+  jz cprTie
+  cmp rdi,rax
+  je cprTie
   mov eax,1
   ja cprDone
   mov eax,-1
-cprDone:
-  ret
-cprEqual:
-  xor eax,eax
-  ret
+  jmp cprDone
+cprGpuEngine:
+  call GpUiCompareEngine
+  mov r12d,r8d
+  mov ecx,r9d
+  cmp r12d,ecx
+  jne cprValidity
+  test eax,eax
+  jz cprTie
+  jmp cprDone
+cprMetadata:
+  mov edx,sortColumn
+  call PmRowValue
+  mov rdi,rax
+  xor r12d,r12d
+  cmp edx,2 ; PM_STATUS_VALID
+  sete r12b
+  mov rcx,rsi
+  mov edx,sortColumn
+  call PmRowValue
+  xor ecx,ecx
+  cmp edx,2
+  sete cl
+  cmp r12d,ecx
+  jne cprValidity
+  test ecx,ecx
+  jz cprTie
+  mov rcx,rdi
+  mov rdx,rax
+  call StrCmpLogicalW
+  test eax,eax
+  jz cprTie
+  jmp cprDone
 cprNames:
-  jmp StrCmpLogicalW
-cprThreads:
-  add rcx,1536
-  add rdx,1536
-  jmp StrCmpLogicalW ; natural-number order: 2 precedes 10
+  call StrCmpLogicalW
+  test eax,eax
+  jnz cprDone
+cprTie:
+  mov eax,[rbx+3584]
+  cmp eax,[rsi+3584]
+  jne cprTieResult
+  mov rax,[rbx+3600]
+  cmp rax,[rsi+3600]
+  je cprZero
+cprTieResult:
+  mov eax,1
+  ja cprStable
+  mov eax,-1
+  jmp cprStable
+cprValidity:
+  ; Valid first for both sort directions. CompareRows performs final inversion.
+  mov eax,-1
+  cmp r12d,ecx
+  ja cprStable
+  mov eax,1
+cprStable:
+  cmp sortDescending,0
+  je cprDone
+  neg eax
+  jmp cprDone
+cprZero:
+  xor eax,eax
+cprDone:
+  add rsp,28h
+  pop r12
+  pop rdi
+  pop rsi
+  pop rbx
+  ret
 CompareProcessRows ENDP
 
 ; NMLVCUSTOMDRAW x64 offsets: item+56, state+64, text colors+80/+84,
@@ -790,28 +862,43 @@ plcdBase:
   jae plcdDefault
   lea rdx,rowMap
   mov r10,[rdx+rax*8]
-  mov eax,[r9+88]
+  sub rsp,38h
+  mov [rsp+20h],r9
+  mov [rsp+28h],r10
+  mov ecx,[r9+88]
+  call PcColumnId
+  mov r9,[rsp+20h]
+  mov r10,[rsp+28h]
+  add rsp,38h
   cmp eax,2
   je plcdCpu
   cmp eax,3
   je plcdMemory
   cmp eax,4
   jne plcdDefault
+  cmp treeEnabled,0
+  jne plcdIoTree
   cmp dword ptr [r10+3896],0
   je plcdDefault
   mov rax,[r10+3888]
-  cmp treeEnabled,0
-  je plcdIoScale
+  jmp plcdIoScale
+plcdIoTree:
+  cmp dword ptr [r10+4060],0
+  je plcdDefault
   mov rax,[r10+4048]
 plcdIoScale:
   shr rax,20
   jmp plcdHeat
 plcdCpu:
+  cmp treeEnabled,0
+  jne plcdCpuTree
   cmp dword ptr [r10+3672],0
   je plcdDefault
   mov eax,[r10+3900]
-  cmp treeEnabled,0
-  je plcdCpuScale
+  jmp plcdCpuScale
+plcdCpuTree:
+  cmp dword ptr [r10+4056],0
+  je plcdDefault
   mov rax,[r10+4040]
 plcdCpuScale:
   xor edx,edx
@@ -819,11 +906,16 @@ plcdCpuScale:
   div rcx
   jmp plcdHeat
 plcdMemory:
+  cmp treeEnabled,0
+  jne plcdMemoryTree
   cmp dword ptr [r10+3656],0
   je plcdDefault
   mov rax,[r10+3632]
-  cmp treeEnabled,0
-  je plcdMemoryScale
+  jmp plcdMemoryScale
+plcdMemoryTree:
+  mov eax,[r10+3712]
+  cmp rax,[r10+3736]
+  jae plcdDefault
   mov rax,[r10+3728]
 plcdMemoryScale:
   shr rax,27 ; one step per 128 MiB, saturating

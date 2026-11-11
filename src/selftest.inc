@@ -12,6 +12,11 @@ processInfo db 24 dup(?)
 .data
 testFailure dd 0
 testMemory dq 0
+testAffinityOriginal dq 0
+testAffinitySystem dq 0
+testAffinityObserved dq 0
+testAffinityObservedSystem dq 0
+testAffinitySingle dq 0
 .code
 TargetThread PROC
   sub rsp,28h
@@ -195,6 +200,12 @@ SelfTest PROC
   mov rax,actionOwnerBirth
   mov actionBirth,rax
   mov actionMode,0
+  ; Execute the actual queued commands against this disposable child only.
+  ; A missing PROCESS_SET_INFORMATION right must fail before other mutations.
+  mov rcx,rbx
+  call AffinityActionTests
+  test eax,eax
+  jnz stFinish
   ; trim and priority target only
   mov actionCode,2004
   mov actionPending,1
@@ -291,5 +302,112 @@ stLaunchFail:
   mov ecx,11
   call ExitProcess
 SelfTest ENDP
+
+; RCX owned child handle. Return 0 or a distinct 20..27 assertion stage.
+; Read affinity independently through the CreateProcess handle, never through
+; the production action's handle/buffers. Restore the original mask on all exits.
+AffinityActionTests PROC
+  push rbx
+  push rsi
+  sub rsp,28h
+  mov rbx,rcx
+  mov esi,20
+  lea rdx,testAffinityOriginal
+  lea r8,testAffinitySystem
+  call GetProcessAffinityMask
+  test eax,eax
+  jz aatDone
+  mov rax,testAffinityOriginal
+  test rax,rax
+  jz aatDone
+  neg rax
+  and rax,testAffinityOriginal
+  mov testAffinitySingle,rax
+  ; 2017 must really restrict the selected child to one eligible CPU.
+  mov actionCode,2017
+  mov actionPending,1
+  call RunQueuedAction
+  mov esi,21
+  cmp actionSucceeded,1
+  jne aatRestore
+  cmp actionFailed,0
+  jne aatRestore
+  mov rcx,rbx
+  lea rdx,testAffinityObserved
+  lea r8,testAffinityObservedSystem
+  call GetProcessAffinityMask
+  mov esi,22
+  test eax,eax
+  jz aatRestore
+  mov rax,testAffinitySingle
+  cmp rax,testAffinityObserved
+  jne aatRestore
+  ; A stale PID+birth identity must not undo that restriction.
+  inc actionBirth
+  mov actionCode,2018
+  mov actionPending,1
+  call RunQueuedAction
+  dec actionBirth
+  mov esi,23
+  cmp actionSucceeded,0
+  jne aatRestore
+  cmp actionFailed,1
+  jne aatRestore
+  mov rcx,rbx
+  lea rdx,testAffinityObserved
+  lea r8,testAffinityObservedSystem
+  call GetProcessAffinityMask
+  mov esi,24
+  test eax,eax
+  jz aatRestore
+  mov rax,testAffinitySingle
+  cmp rax,testAffinityObserved
+  jne aatRestore
+  ; 2018 restores all CPUs reported by the OS for this child's processor group.
+  mov actionCode,2018
+  mov actionPending,1
+  call RunQueuedAction
+  mov esi,25
+  cmp actionSucceeded,1
+  jne aatRestore
+  cmp actionFailed,0
+  jne aatRestore
+  mov rcx,rbx
+  lea rdx,testAffinityObserved
+  lea r8,testAffinityObservedSystem
+  call GetProcessAffinityMask
+  mov esi,26
+  test eax,eax
+  jz aatRestore
+  mov rax,testAffinitySystem
+  cmp rax,testAffinityObserved
+  jne aatRestore
+  xor esi,esi
+aatRestore:
+  mov rcx,rbx
+  mov rdx,testAffinityOriginal
+  call SetProcessAffinityMask
+  test eax,eax
+  jz aatRestoreFailed
+  mov rcx,rbx
+  lea rdx,testAffinityObserved
+  lea r8,testAffinityObservedSystem
+  call GetProcessAffinityMask
+  test eax,eax
+  jz aatRestoreFailed
+  mov rax,testAffinityOriginal
+  cmp rax,testAffinityObserved
+  je aatDone
+aatRestoreFailed:
+  test esi,esi
+  jnz aatDone
+  mov esi,27
+aatDone:
+  mov eax,esi
+  add rsp,28h
+  pop rsi
+  pop rbx
+  ret
+AffinityActionTests ENDP
 
 

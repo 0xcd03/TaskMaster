@@ -9,6 +9,9 @@
 BEGIN
  POPUP "Process"
  BEGIN
+  MENUITEM "Run new task...",2500
+  MENUITEM "Process details...",2501
+  MENUITEM SEPARATOR
   MENUITEM "End process / thread...",2001
   MENUITEM "Pause...",2002
   MENUITEM "Resume our pauses...",2003
@@ -40,6 +43,8 @@ BEGIN
   MENUITEM "Performance",2104
   MENUITEM "Startup sources",2105
   MENUITEM "Persistent app history",2106
+  MENUITEM SEPARATOR
+  MENUITEM "Choose process columns...",2502
  END
  POPUP "Service"
  BEGIN
@@ -74,6 +79,9 @@ END
 BEGIN
  POPUP "Процесс"
  BEGIN
+  MENUITEM "Запустить новую задачу...",2500
+  MENUITEM "Сведения о процессе...",2501
+  MENUITEM SEPARATOR
   MENUITEM "Завершить процесс / поток...",2001
   MENUITEM "Приостановить...",2002
   MENUITEM "Снять наши приостановки...",2003
@@ -105,6 +113,8 @@ BEGIN
   MENUITEM "Производительность",2104
   MENUITEM "Источники автозагрузки",2105
   MENUITEM "Постоянная история",2106
+  MENUITEM SEPARATOR
+  MENUITEM "Выбрать столбцы процессов...",2502
  END
  POPUP "Служба"
  BEGIN
@@ -178,6 +188,311 @@ BEGIN
  LTEXT "Превышение в течение 10 секунд; не чаще раза в 5 минут. Активные приложения пропускаются.",-1,12,57,236,25
  DEFPUSHBUTTON "Сохранить",1,130,89,55,16
  PUSHBUTTON "Отмена",2,191,89,55,16
+END
+
+#pragma code_page(65001)
+303 DIALOGEX 0,0,380,246
+STYLE 0x80C800C0
+CAPTION "Run new task"
+FONT 9,"Segoe UI"
+BEGIN
+ LTEXT "Executable (full path):",-1,12,12,356,10
+ EDITTEXT 4001,12,26,294,14,0x50010080
+ PUSHBUTTON "Browse...",4004,312,26,56,14
+ LTEXT "Arguments (passed exactly as entered):",-1,12,48,356,10
+ EDITTEXT 4002,12,62,356,14,0x50010080
+ LTEXT "Working directory (optional):",-1,12,84,356,10
+ EDITTEXT 4003,12,98,356,14,0x50010080
+ AUTOCHECKBOX "Request administrator privileges (UAC)",4005,12,120,356,14
+ LTEXT "Normal launch uses Task Master's current permissions. If Task Master is elevated, the new task is elevated too.",4007,12,139,356,26
+ LTEXT "",4006,12,170,356,38,0x50000080
+ DEFPUSHBUTTON "Run",1,248,220,55,16
+ PUSHBUTTON "Cancel",2,309,220,59,16
+END
+304 DIALOGEX 0,0,380,246
+STYLE 0x80C800C0
+CAPTION "Запустить новую задачу"
+FONT 9,"Segoe UI"
+BEGIN
+ LTEXT "Программа (полный путь):",-1,12,12,356,10
+ EDITTEXT 4001,12,26,294,14,0x50010080
+ PUSHBUTTON "Обзор...",4004,312,26,56,14
+ LTEXT "Аргументы (передаются точно как введены):",-1,12,48,356,10
+ EDITTEXT 4002,12,62,356,14,0x50010080
+ LTEXT "Рабочая папка (необязательно):",-1,12,84,356,10
+ EDITTEXT 4003,12,98,356,14,0x50010080
+ AUTOCHECKBOX "Запросить права администратора (UAC)",4005,12,120,356,14
+ LTEXT "Обычный запуск использует текущие права Task Master. Если Task Master запущен администратором, новая задача тоже получит эти права.",4007,12,139,356,26
+ LTEXT "",4006,12,170,356,38,0x50000080
+ DEFPUSHBUTTON "Запустить",1,248,220,55,16
+ PUSHBUTTON "Отмена",2,309,220,59,16
+END
+STRINGTABLE
+BEGIN
+ 50000 "Error %u: %s"
+ 50001 "Ошибка %u: %s"
+ 50002 "Administrator request cancelled (1223). Your entries are unchanged."
+ 50003 "Запрос прав администратора отменён (1223). Введённые данные сохранены."
+ 50004 "Choose an executable"
+ 50005 "Выберите программу"
+ 50006 "Unable to open the new-task dialog."
+ 50007 "Не удалось открыть диалог запуска задачи."
+END
+
+#pragma code_page(65001)
+305 DIALOGEX 0,0,440,460
+STYLE 0x80CF00C0
+EXSTYLE 0x00000080
+CAPTION "Process details"
+FONT 9,"Segoe UI"
+BEGIN
+ LTEXT "",4100,10,10,420,14
+ LTEXT "Loading...",4101,10,28,420,18
+ LTEXT "Executable path:",4110,10,50,420,10
+ EDITTEXT 4102,10,63,420,30,0x50A30844
+ LTEXT "Process counters (I/O includes non-disk devices):",4111,10,100,420,10
+ EDITTEXT 4103,10,113,420,158,0x50A30844
+ LTEXT "User SID:",4112,10,278,420,10
+ EDITTEXT 4104,10,291,420,16,0x50810880
+ LTEXT "Account:",4113,10,312,420,10
+ EDITTEXT 4106,10,325,420,16,0x50810880
+ LTEXT "Command line (WMI):",4114,10,346,420,10
+ EDITTEXT 4107,10,359,420,47,0x50A30844
+ LTEXT "Loading account and command line...",4105,10,412,420,20
+ DEFPUSHBUTTON "Refresh",1,300,436,62,16
+ PUSHBUTTON "Close",2,368,436,62,16
+END
+306 DIALOGEX 0,0,440,460
+STYLE 0x80CF00C0
+EXSTYLE 0x00000080
+CAPTION "Сведения о процессе"
+FONT 9,"Segoe UI"
+BEGIN
+ LTEXT "",4100,10,10,420,14
+ LTEXT "Загрузка...",4101,10,28,420,18
+ LTEXT "Путь программы:",4110,10,50,420,10
+ EDITTEXT 4102,10,63,420,30,0x50A30844
+ LTEXT "Счётчики процесса (I/O включает недисковые устройства):",4111,10,100,420,10
+ EDITTEXT 4103,10,113,420,158,0x50A30844
+ LTEXT "SID пользователя:",4112,10,278,420,10
+ EDITTEXT 4104,10,291,420,16,0x50810880
+ LTEXT "Учётная запись:",4113,10,312,420,10
+ EDITTEXT 4106,10,325,420,16,0x50810880
+ LTEXT "Командная строка (WMI):",4114,10,346,420,10
+ EDITTEXT 4107,10,359,420,47,0x50A30844
+ LTEXT "Загрузка учётной записи и командной строки...",4105,10,412,420,20
+ DEFPUSHBUTTON "Обновить",1,300,436,62,16
+ PUSHBUTTON "Закрыть",2,368,436,62,16
+END
+STRINGTABLE
+BEGIN
+ 52000 "Process details"
+ 52001 "Сведения о процессе"
+ 52010 "%s (PID %u)"
+ 52011 "%s (PID %u)"
+ 52020 "Loading..."
+ 52021 "Загрузка..."
+ 52022 "Identity verified. Values belong to this process only."
+ 52023 "Идентичность подтверждена. Значения относятся только к этому процессу."
+ 52024 "Process exited. Last sample retained; updates stopped."
+ 52025 "Процесс завершён. Последние данные сохранены; обновление остановлено."
+ 52026 "Access denied. Available fields remain visible."
+ 52027 "Доступ запрещён. Доступные поля сохранены."
+ 52028 "Process identity changed or was not recorded. Refresh the list and reopen."
+ 52029 "Идентичность изменилась или не подтверждена. Обновите список и откройте снова."
+ 52030 "Process state could not be confirmed."
+ 52031 "Состояние процесса не подтверждено."
+ 52032 "Request cancelled."
+ 52033 "Запрос отменён."
+ 52040 "Unavailable (error %u)"
+ 52041 "Недоступно (ошибка %u)"
+ 52042 "%s: %I64u\r\n"
+ 52043 "%s: %I64u\r\n"
+ 52044 "%s: unavailable (error %u)\r\n"
+ 52045 "%s: недоступно (ошибка %u)\r\n"
+ 52046 "Started (UTC): %04u-%02u-%02u %02u:%02u:%02u\r\n"
+ 52047 "Запуск (UTC): %04u-%02u-%02u %02u:%02u:%02u\r\n"
+ 52048 "Started (local): %04u-%02u-%02u %02u:%02u:%02u\r\n"
+ 52049 "Запуск (местное время): %04u-%02u-%02u %02u:%02u:%02u\r\n"
+ 52050 "Handles"
+ 52051 "Дескрипторы"
+ 52052 "Private commit (bytes)"
+ 52053 "Private commit (байт)"
+ 52054 "Working set (bytes)"
+ 52055 "Рабочий набор (байт)"
+ 52056 "Kernel time (100 ns)"
+ 52057 "Время ядра (100 нс)"
+ 52058 "User time (100 ns)"
+ 52059 "Пользовательское время (100 нс)"
+ 52060 "Read operations"
+ 52061 "Операции чтения"
+ 52062 "Write operations"
+ 52063 "Операции записи"
+ 52064 "Other I/O operations"
+ 52065 "Прочие операции I/O"
+ 52066 "Read bytes"
+ 52067 "Прочитано байт"
+ 52068 "Write bytes"
+ 52069 "Записано байт"
+ 52070 "Other I/O bytes"
+ 52071 "Прочее I/O, байт"
+ 52072 "CPU (total machine capacity)"
+ 52073 "CPU (общая мощность процессоров)"
+ 52074 "Read I/O (bytes/s)"
+ 52075 "Чтение I/O (байт/с)"
+ 52076 "Write I/O (bytes/s)"
+ 52077 "Запись I/O (байт/с)"
+ 52078 "Other I/O (bytes/s)"
+ 52079 "Прочее I/O (байт/с)"
+ 52080 "Unable to open process details (error %u)."
+ 52081 "Не удалось открыть сведения о процессе (ошибка %u)."
+ 52082 "%s: %u.%02u%%\r\n"
+ 52083 "%s: %u,%02u%%\r\n"
+ 52084 " Last successful data received (local): %04u-%02u-%02u %02u:%02u:%02u. Rates unavailable."
+ 52085 " Последние успешные данные получены (местное время): %04u-%02u-%02u %02u:%02u:%02u. Скорости недоступны."
+ 52086 " (error %u)."
+ 52087 " (ошибка %u)."
+ 52088 "Time zone: %s\r\n"
+ 52089 "Часовой пояс: %s\r\n"
+ 52100 "Loading account and command line..."
+ 52101 "Загрузка учётной записи и командной строки..."
+ 52102 "The provider timed out or is busy. Use Refresh to try again."
+ 52103 "Источник данных занят или не ответил. Повторите запрос кнопкой «Обновить»."
+ 52104 "Optional fields received. Command line source: Windows WMI."
+ 52105 "Дополнительные поля получены. Источник командной строки: Windows WMI."
+ 52106 "Optional fields unavailable (error %u)."
+ 52107 "Дополнительные поля недоступны (ошибка %u)."
+ 52108 "Loading..."
+ 52109 "Загрузка..."
+ 52110 "Unavailable (HRESULT 0x%08X)"
+ 52111 "Недоступно (HRESULT 0x%08X)"
+ 52112 "Timed out / provider busy"
+ 52113 "Превышено время ожидания / источник занят"
+ 52114 "Not requested"
+ 52115 "Не запрошено"
+END
+
+#pragma code_page(65001)
+307 DIALOGEX 0,0,330,344
+STYLE 0x80C800C0
+EXSTYLE 0x00000080
+CAPTION "Choose process columns"
+FONT 9,"Segoe UI"
+BEGIN
+ LTEXT "Choose fields and their order. Name and PID are required.",4305,10,10,310,24
+ CONTROL "",4300,"SysListView32",0x5081000D,10,38,236,210
+ PUSHBUTTON "Up",4301,252,38,68,18
+ PUSHBUTTON "Down",4302,252,62,68,18
+ PUSHBUTTON "Defaults",4303,252,92,68,18
+ LTEXT "",4304,10,254,310,54
+ DEFPUSHBUTTON "OK",1,180,316,68,18
+ PUSHBUTTON "Cancel",2,252,316,68,18
+END
+308 DIALOGEX 0,0,330,344
+STYLE 0x80C800C0
+EXSTYLE 0x00000080
+CAPTION "Выбрать столбцы процессов"
+FONT 9,"Segoe UI"
+BEGIN
+ LTEXT "Выберите поля и их порядок. Имя и PID обязательны.",4305,10,10,310,24
+ CONTROL "",4300,"SysListView32",0x5081000D,10,38,236,210
+ PUSHBUTTON "Вверх",4301,252,38,68,18
+ PUSHBUTTON "Вниз",4302,252,62,68,18
+ PUSHBUTTON "По умолчанию",4303,252,92,68,30
+ LTEXT "",4304,10,254,310,54
+ DEFPUSHBUTTON "OK",1,180,316,68,18
+ PUSHBUTTON "Отмена",2,252,316,68,18
+END
+STRINGTABLE
+BEGIN
+ 52200 "Choose process columns"
+ 52201 "Выбрать столбцы процессов"
+ 52202 "Name remains first for the process tree. I/O includes non-disk devices. Private commit is not private working set. UTC, parent PID and byte counters describe this process; memory/CPU/rate follow the tree view."
+ 52203 "Имя закреплено первым для дерева. I/O включает недисковые устройства. Private commit не равен private working set. UTC, родительский PID и счётчики байт относятся к самому процессу; память/CPU/скорость следуют режиму дерева."
+ 52204 "Layout applied for this session; unable to save it (error %u)."
+ 52205 "Макет применён в текущем сеансе, но сохранить его не удалось (ошибка %u)."
+ 52206 "Unable to apply this layout (error %u)."
+ 52207 "Не удалось применить макет (ошибка %u)."
+ 52214 "Parent PID"
+ 52215 "Родительский PID"
+ 52216 "Private commit (MiB)"
+ 52217 "Private commit (МиБ)"
+ 52218 "Started (UTC)"
+ 52219 "Запуск (UTC)"
+ 52220 "Read bytes (process)"
+ 52221 "Прочитано байт (процесс)"
+ 52222 "Written bytes (process)"
+ 52223 "Записано байт (процесс)"
+ 52224 "User name"
+ 52225 "Пользователь"
+ 52226 "Image path"
+ 52227 "Путь к файлу"
+ 52228 "Command line"
+ 52229 "Командная строка"
+ 52230 "Handles (process)"
+ 52231 "Дескрипторы (процесс)"
+ 52232 "GPU (%)"
+ 52233 "ГП (%)"
+ 52234 "GPU engine"
+ 52235 "Ядро ГП"
+ 52236 "Dedicated GPU memory (MiB)"
+ 52237 "Выделенная память ГП (МиБ)"
+ 52238 "Shared GPU memory (MiB)"
+ 52239 "Общая память ГП (МиБ)"
+ 52310 "Loading..."
+ 52311 "Загрузка..."
+ 52312 "Timed out (%u)"
+ 52313 "Время ожидания истекло (%u)"
+ 52314 "Unavailable (%u)"
+ 52315 "Недоступно (%u)"
+END
+
+#pragma code_page(65001)
+STRINGTABLE
+BEGIN
+ 52400 "Warming up..."
+ 52401 "Прогрев..."
+ 52402 "No measurement"
+ 52403 "Нет измерения"
+ 52404 "Unavailable (%u)"
+ 52405 "Недоступно (%u)"
+ 52406 "Partial data (%u)"
+ 52407 "Неполные данные (%u)"
+ 52408 "Stale data"
+ 52409 "Данные устарели"
+ 52410 "GPU counters: PDH; process identity checked separately. Windows 10 process memory may be inaccurate (KB4490156)."
+ 52411 "GPU: счётчики PDH; идентичность процесса проверена отдельно. Память процессов в Windows 10 может быть неточной (KB4490156)."
+ 52412 "Dedicated GPU usage (MiB)"
+ 52413 "Выделенная память GPU, занято (МиБ)"
+ 52414 "Shared GPU usage (MiB)"
+ 52415 "Общая память GPU, занято (МиБ)"
+ 52416 "Dedicated GPU capacity (MiB)"
+ 52417 "Выделенная память GPU, объём (МиБ)"
+ 52418 "Shared GPU capacity (MiB)"
+ 52419 "Общая память GPU, предел (МиБ)"
+ 52420 "Software adapter"
+ 52421 "Программный адаптер"
+END
+
+#pragma code_page(65001)
+STRINGTABLE
+BEGIN
+ 52422 "GPU counter source"
+ 52423 "Источник счётчиков GPU"
+ 52424 "GPU sample sequence"
+ 52425 "Номер измерения GPU"
+ 52426 "GPU observation interval"
+ 52427 "Интервал наблюдения GPU"
+ 52428 "Adapter"
+ 52429 "Адаптер"
+ 52430 "LUID / physical index"
+ 52431 "LUID / физический индекс"
+ 52432 "Utilization"
+ 52433 "Загрузка"
+ 52434 "GPU capture status"
+ 52435 "Состояние измерения GPU"
+ 52436 "Adapter type"
+ 52437 "Тип адаптера"
 END
 
 STRINGTABLE

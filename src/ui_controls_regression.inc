@@ -1,13 +1,23 @@
 ; Native controls with disposable in-memory rows. Never modifies real startup.
 extern GetWindowLongPtrW:proc, GetWindowTextLengthW:proc, GetMenuState:proc
+extern PeekMessageW:proc
 .data
 uiStartupCapturedCode dd 0
 uiStartupCapturedCount dd 0
 uiControlsAssertions dd 0
 uiControlsStage dd 0
+uiSidebarModes dd 2,3,4,5,6,0
+uiSidebarIndices dd 1,2,3,4,5,0
+uiSidebarCurrent dd 0
+uiSidebarExpected dd 0
+uiSidebarQueued dd 0
+uiSidebarBytes dd 0
+uiSidebarFormat db 'Sidebar click: index=%u, expectedMode=%u, front=%u, desired=%u, queued=%u',13,10,0
 uiControlsReport dw 'T','e','s','t',13,10,'D','e','t','a','i','l','s',13,10,'R','e','p','o','r','t',0
 .data?
 uiControlsRect RECT <>
+uiSidebarMessage db 48 dup(?)
+uiSidebarOutput db 192 dup(?)
 .code
 UiControlsRegression PROC
   push rbx
@@ -205,6 +215,9 @@ ucrCompareState:
   test eax,4
   jnz ucrDone
   inc uiControlsAssertions
+  call UiSidebarNavigationRegression
+  test eax,eax
+  jnz ucrDone
   mov uiControlsStage,0
 ucrDone:
   mov eax,uiControlsStage
@@ -213,3 +226,105 @@ ucrDone:
   pop rbx
   ret
 UiControlsRegression ENDP
+
+; Drive each real native BUTTON through its actual sidebar parent. Menu-level
+; WM_COMMAND tests alone cannot detect broken child notification forwarding.
+UiSidebarNavigationRegression PROC
+  push rbx
+  push rsi
+  push rdi
+  sub rsp,50h
+  xor edi,edi
+usnrBusy:
+  mov actionBusy,edi
+  xor esi,esi
+usnrButton:
+  mov uiControlsStage,145
+  lea rax,uiSidebarModes
+  mov ebx,[rax+rsi*4]
+  mov uiSidebarExpected,ebx
+  lea rax,uiSidebarIndices
+  mov eax,[rax+rsi*4]
+  mov uiSidebarCurrent,eax
+  lea rdx,navButtons
+  mov rcx,[rdx+rax*8]
+  mov [rsp+40h],rcx
+  call GetParent
+  cmp rax,shellWnd
+  jne usnrFail
+  mov rcx,[rsp+40h]
+  call GetDlgCtrlID
+  lea edx,[rbx+2100]
+  cmp eax,edx
+  jne usnrFail
+  mov uiControlsStage,146
+  mov uiSidebarQueued,0
+  mov rcx,[rsp+40h]
+  mov edx,0F5h ; BM_CLICK, native mouse/keyboard activation route
+  xor r8d,r8d
+  xor r9d,r9d
+  call SendMessageW
+usnrDispatch:
+  ; Forwarding may be posted; dispatch its real queued notification instead
+  ; of manufacturing a main-window WM_COMMAND as the older probe does.
+  lea rcx,uiSidebarMessage
+  mov rdx,gMain
+  mov r8d,111h
+  mov r9d,111h
+  mov qword ptr [rsp+20h],1 ; PM_REMOVE
+  call PeekMessageW
+  test eax,eax
+  jz usnrCheck
+  inc uiSidebarQueued
+  cmp uiSidebarQueued,32
+  ja usnrFail
+  lea rcx,uiSidebarMessage
+  call DispatchMessageW
+  jmp usnrDispatch
+usnrCheck:
+  cmp frontMode,ebx
+  jne usnrFail
+  cmp desiredMode,ebx
+  jne usnrFail
+  cmp actionBusy,edi
+  jne usnrFail
+  inc uiControlsAssertions
+  inc esi
+  cmp esi,6
+  jb usnrButton
+  inc edi
+  cmp edi,2
+  jb usnrBusy
+  mov actionBusy,0
+  xor eax,eax
+  jmp usnrDone
+usnrFail:
+  lea rcx,uiSidebarOutput
+  lea rdx,uiSidebarFormat
+  mov r8d,uiSidebarCurrent
+  mov r9d,uiSidebarExpected
+  mov eax,frontMode
+  mov [rsp+20h],rax
+  mov eax,desiredMode
+  mov [rsp+28h],rax
+  mov eax,uiSidebarQueued
+  mov [rsp+30h],rax
+  call wsprintfA
+  mov [rsp+48h],eax
+  mov ecx,-11
+  call GetStdHandle
+  mov rcx,rax
+  lea rdx,uiSidebarOutput
+  mov r8d,[rsp+48h]
+  lea r9,uiSidebarBytes
+  mov qword ptr [rsp+20h],0
+  call WriteFile
+  mov actionBusy,0
+  mov eax,uiControlsStage
+usnrDone:
+  add rsp,50h
+  pop rdi
+  pop rsi
+  pop rbx
+  ret
+UiSidebarNavigationRegression ENDP

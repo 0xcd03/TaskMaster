@@ -518,5 +518,7 @@ pstDone:
 PrepareSelectiveTrim ENDP
 
 include memory_policy.inc
+IFDEF TM_TESTS
 include memory_trim_tests.inc
 include memory_policy_tests.inc
+ENDIF

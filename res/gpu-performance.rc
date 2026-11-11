@@ -1,0 +1,20 @@
+#pragma code_page(65001)
+STRINGTABLE
+BEGIN
+ 52422 "GPU counter source"
+ 52423 "Источник счётчиков GPU"
+ 52424 "GPU sample sequence"
+ 52425 "Номер измерения GPU"
+ 52426 "GPU observation interval"
+ 52427 "Интервал наблюдения GPU"
+ 52428 "Adapter"
+ 52429 "Адаптер"
+ 52430 "LUID / physical index"
+ 52431 "LUID / физический индекс"
+ 52432 "Utilization"
+ 52433 "Загрузка"
+ 52434 "GPU capture status"
+ 52435 "Состояние измерения GPU"
+ 52436 "Adapter type"
+ 52437 "Тип адаптера"
+END

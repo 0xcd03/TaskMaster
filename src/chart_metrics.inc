@@ -2,6 +2,7 @@
 pdhDisk dq 0
 chartLastTick dq 0
 chartElapsed dq 0
+gpuChartLastSequence dq 0
 diskPath dw '\','P','h','y','s','i','c','a','l','D','i','s','k','(','_','T','o','t','a','l',')','\','D','i','s','k',' ','B','y','t','e','s','/','s','e','c',0
 .data?
 chartMemStatus db 64 dup(?)
@@ -16,7 +17,13 @@ ccmCpu:
   mov chartBack,eax
   mov eax,gpuValue
   cmp gpuValid,0
-  jne ccmGpu
+  je ccmGpuMissing
+  mov rdx,gpuTelemetrySequence
+  cmp rdx,gpuChartLastSequence
+  je ccmGpuMissing
+  mov gpuChartLastSequence,rdx
+  jmp ccmGpu
+ccmGpuMissing:
   mov eax,-1
 ccmGpu:
   mov [chartBack+8],eax
@@ -26,6 +33,8 @@ ccmGpu:
   mov eax,dword ptr [chartMemStatus+4]
   mov [chartBack+4],eax
   mov dword ptr [chartBack+12],-1
+  cmp pdhStatus,0
+  jne ccmNet
   mov rcx,pdhDisk
   test rcx,rcx
   jz ccmNet
@@ -49,6 +58,7 @@ ccmDiskFits:
   mov [chartBack+12],eax
 ccmNet:
   call GetTickCount64
+  mov telemetryPassTick,rax
   mov rcx,rax
   sub rax,chartLastTick
   mov rdx,chartLastTick

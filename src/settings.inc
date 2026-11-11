@@ -94,6 +94,7 @@ LoadSettings PROC
   mov refreshInterval,eax
 lsFont:
   call LoadMemorySettings
+  call PcLoadCurrent
   call GetDpiForSystem
   mov uiDpi,eax
   call RecalcUiScale
@@ -231,6 +232,7 @@ ApplyTheme PROC
   sub rsp,28h
   call UpdateShellTheme
   call ApplyMenuTheme
+  call PdUiApplyTheme
   ; Ask the native control theme to paint its nonclient scrollbars and border.
   ; Manual drawing/colors continue to work if a theme part is unavailable.
   mov rcx,gList

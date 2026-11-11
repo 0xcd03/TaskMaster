@@ -152,6 +152,9 @@ AddChartSample PROC
   lea rdx,chartBack
   lea r8,chartData
   mov ecx,chartHead
+  lea r10,chartTimes
+  mov rax,telemetryPassTick
+  mov [r10+rcx*8],rax
   xor eax,eax
 acsLoop:
   mov r9d,[rdx+rax*4]
@@ -160,6 +163,7 @@ acsLoop:
   inc eax
   cmp eax,5
   jb acsLoop
+AdvanceChartPosition::
   inc chartHead
   cmp chartHead,180
   jb acsCount
